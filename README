@@ -1,0 +1,89 @@
+= What's this?
+
+Arpie is a end-to-end framework for sending synchronous message-and-answer
+pairs, and serves as the basis for a RPC framework, handling a variety of protocols,
+including a generic Marshal proof of concept; writing your own Protocol is quite simple.
+
+* It uses ruby threads on the server side, one per connection.
+* The client is single-threaded.
+
+== Source Code
+
+Source code is in git[http://git.swordcoast.net/?p=lib/ruby/arpie.git;a=summary].
+
+You can contact me via email at elven@swordcoast.net.
+
+
+== Simple, contrived example: A string reverse server
+
+  require 'rubygems'
+  require 'arpie'
+  require 'socket'
+
+  server = TCPServer.new(51210)
+
+  e = Arpie::Endpoint.new(Arpie::MarshalProtocol.new)
+
+  e.handle do |ep, msg|
+    msg.reverse
+  end
+
+  e.accept do
+    server.accept
+  end
+
+  c = Arpie::Transport.new(Arpie::MarshalProtocol.new)
+  c.connect do |transport|
+    TCPSocket.new("127.0.0.1", 51210)
+  end
+
+  puts c.request "hi"
+  # => "ih"
+
+== Advanced, but still simple example: Using Proxy to access remote objects
+
+  require 'rubygems'
+  require 'arpie'
+  require 'socket'
+
+  class MyHandler
+    def reverse str
+      str.reverse
+    end
+  end
+
+  server = TCPServer.new(51210)
+
+  e = Arpie::ProxyEndpoint.new(Arpie::MarshalProtocol.new)
+
+  e.handle MyHandler.new
+
+  e.accept do
+    server.accept
+  end
+
+  c = Arpie::Transport.new(Arpie::MarshalProtocol.new)
+  c.connect do |transport|
+    TCPSocket.new("127.0.0.1", 51210)
+  end
+  p = Arpie::Proxy.new(c)
+
+  puts p.reverse "hi"
+  # => "ih"
+
+== Benchmarks
+
+There is a benchmark script included in the git repository (and in the gem
+under tools/). A sample output follows; your milage may vary.
+
+        user     system      total        real
+
+  native DRb
+     1  0.000000   0.000000   0.000000 (  0.000167)
+  1000  0.120000   0.010000   0.130000 (  0.121834)
+
+  ruby xmlrpc/server - too slow to benchmark
+
+  Arpie: proxied MarshalProtocol
+     1  0.000000   0.000000   0.000000 (  0.000617)
+  1000  0.100000   0.020000   0.120000 (  0.114573)
