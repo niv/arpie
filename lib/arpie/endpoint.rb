@@ -7,6 +7,7 @@ module Arpie
   # There will be one Thread per connection, so order of
   # execution with multiple threads is not guaranteed.
   class Endpoint
+    attr_reader :protocol
 
     # Create a new Endpoint with the given +Protocol+.
     # You will need to define a handler, and an acceptor
@@ -17,6 +18,14 @@ module Arpie
 
       @last_answer = {}
 
+      @on_connect = lambda {|endpoint, io| }
+      @on_disconnect = lambda {|endpoint, io, transport_id, exception| }
+      @on_handler_error = lambda {|endpoint, message, exception|
+        $stderr.puts "Error in handler: #{exception.message.to_s}"
+        $stderr.puts exception.backtrace.join("\n")
+        $stderr.puts "Returning exception for this call."
+        Exception.new("internal error")
+      }
       @handler = lambda {|endpoint, message| raise ArgumentError, "No handler defined." }
     end
 
@@ -28,7 +37,7 @@ module Arpie
     #  my_endpoint.accept do
     #    listener.accept
     #  end
-    def accept &acceptor
+    def accept &acceptor #:yields: endpoint
       @acceptor = acceptor
       Thread.new { _acceptor_thread }
     end
@@ -42,9 +51,31 @@ module Arpie
     #    puts "Got a message: #{message.inspect}"
     #    "ok"
     #  end
-    def handle &handler
+    def handle &handler #:yields: endpoint, message
       raise ArgumentError, "need a block" unless block_given?
       @handler = handler
+    end
+
+    # Set an error handler.
+    # The return value will be sent to the client.
+    #
+    # Default is to print the exception to stderr, and return
+    # a generic exception that does not leak information.
+    def on_handler_error &handler #:yields: endpoint, message, exception
+      @on_handler_error = handler
+      self
+    end
+
+    # Called when a new client connects.
+    def on_connect &handler #:yields: endpoint, io
+      @on_connect = handler
+      self
+    end
+
+    # Called when a client disconnects.
+    def on_disconnect &handler #:yields: endpoint, io, transport_id, exception
+      @on_disconnect = handler
+      self
     end
 
     private
@@ -62,25 +93,26 @@ module Arpie
     end
 
     def _read_thread client
+      @on_connect.call(self, client)
       _transport_id = nil
+      _exception = nil
 
       loop do
-        break if client.eof?
+        message, transport_id, serial, answer = nil, 0, 0, nil
 
-        message, transport_id, serial, answer = nil, nil, nil, nil
         begin
           message, transport_id, serial = @protocol.read_message(client)
         rescue => e
+          _exception = e
           break
         end
-
         _transport_id ||= transport_id
         @last_answer[_transport_id] ||= [0, 0]
 
         if transport_id != _transport_id
           answer = Exception.new("You cannot change your transport_id once set (original id: #{_transport_id.inspect}, given id: #{transport_id.inspect})")
 
-        elsif _transport_id != nil && serial != nil && _transport_id != 0 && serial != 0 && @last_answer[_transport_id][0] == serial
+        elsif _transport_id != 0 && serial != 0 && @last_answer[_transport_id][0] == serial
           answer = @last_answer[_transport_id][1]
 
         else
@@ -88,10 +120,7 @@ module Arpie
           begin
             answer = _handle(message)
           rescue Exception => e
-            $stderr.puts "Error in handler: #{e.message.to_s}"
-            $stderr.puts e.backtrace.join("\n")
-            $stderr.puts "Returning exception for this call."
-            answer = e
+            answer = @on_handler_error.call(self, message, e)
           end
           @last_answer[_transport_id] = [serial, answer]
         end
@@ -99,10 +128,12 @@ module Arpie
         begin
           @protocol.write_message(client, answer, _transport_id, serial)
         rescue => e
+          _exception = e
           break
         end
       end
 
+      @on_disconnect.call(self, client, _transport_id, _exception)
       @last_answer.delete(_transport_id)
       @clients.delete(client)
     end

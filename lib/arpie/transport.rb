@@ -32,9 +32,13 @@ module Arpie
     def initialize protocol
       @protocol = protocol
       @io = nil
+      @connector = lambda { raise ArgumentError, "No connector specified, cannot connect to Endpoint." }
       @connect_retry = nil
       @connect_sleep = 1.0
       @serial = 0
+      @on_pre_call = lambda {|transport, message, io, transport_uuid, serial, try| }
+      @on_post_call = lambda {|transport, message, reply, io, transport_uuid, serial, try| }
+      @on_error = lambda {|transport, exception| }
       generate_uuid
     end
 
@@ -45,6 +49,25 @@ module Arpie
     def connect connect_immediately = false, &connector
       @connector = connector
       _connect if connect_immediately
+      self
+    end
+
+    # Set an error handler. It will be called with two
+    # parameters, the transport, and the exception that occured.
+    # Optional, and just for notification.
+    def on_error &handler #:yields: transport, exception
+      @on_error = handler
+      self
+    end
+
+    def pre_call &handler #:yields: transport, message, io, transport_uuid, serial, try
+      @on_pre_call = handler
+      self
+    end
+
+    def post_call &handler #:yields: transport, message, reply, io, transport_uuid, serial, try
+      @on_post_call = handler
+      self
     end
 
     # Send a message and receive a reply in a synchronous
@@ -56,25 +79,34 @@ module Arpie
 
       try = 0
 
+      @on_pre_call.call(self, message, @io, @transport_uuid, serial, try) if @on_pre_call
+
       begin
         _connect
         @protocol.write_message(@io, message, @transport_uuid, serial)
         reply, transport_id, serial = @protocol.read_message(@io)
       rescue => e
         try += 1
-        puts e.message.to_s
-        puts e.backtrace.join("\n")
+        @on_error.call(self, e) if @on_error
+
         if @connect_retry == 0 || (@connect_retry && try > @connect_retry)
           raise EOFError, "Cannot send request: lost connection after #{try} attempts (#{e.message.to_s})"
         end
 
         sleep @connect_sleep
-        begin; @io.close; rescue; end
+        begin; @io.close if @io; rescue; end
         @io = nil
         retry
       end
 
-      reply
+      @on_post_call.call(self, message, reply, @io, @transport_uuid, serial, try) if @on_post_call
+
+      case reply
+        when Exception
+          raise reply
+        else
+          reply
+      end
     end
 
     # Generate a new UUID for this transport. You usually do not
@@ -82,6 +114,7 @@ module Arpie
     def generate_uuid
       @transport_uuid = 1 + rand(0xfffffffffffffffe)
       puts "generated tid: #{transport_uuid}" if $DEBUG
+      self
     end
 
     private
