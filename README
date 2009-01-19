@@ -13,6 +13,9 @@ Source code is in git[http://git.swordcoast.net/?p=lib/ruby/arpie.git;a=summary]
 
 You can contact me via email at elven@swordcoast.net.
 
+arpie is available on the rubygems gem server - just do <tt>gem1.8 install arpie</tt>
+to get the newest version.
+
 
 == Simple, contrived example: A string reverse server
 
