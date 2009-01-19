@@ -71,6 +71,25 @@ You can contact me via email at elven@swordcoast.net.
   puts p.reverse "hi"
   # => "ih"
 
+
+== Replay protection
+
+It can happen that a Transport loses connection to a Endpoint.
+In that case, the Transport tries transparently reconnecting by simply
+invoking the block again that was given to Transport#connect.
+See the Transport accessors for modifying this behaviour.
+
+It is assumed that each call, that is being placed, is atomic - eg, no
+connection losses in between message send and receive; lost messages
+will be retransmitted. The Protocol class provides support for replay
+protection through serials; though it is not a requirement to implement it.
+If a serial is provided in the data stream, the Endpoint will not call
+the handler again for retransmissions, but instead reply with the old, 
+already evaluated value.
+
+Not all protocols support serials; those who do not offer no replay protection,
+and special care has to be taken elsewhere.
+
 == Benchmarks
 
 There is a benchmark script included in the git repository (and in the gem

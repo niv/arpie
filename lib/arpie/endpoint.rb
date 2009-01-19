@@ -15,6 +15,8 @@ module Arpie
       @protocol = protocol
       @clients = []
 
+      @last_answer = {}
+
       @handler = lambda {|endpoint, message| raise ArgumentError, "No handler defined." }
     end
 
@@ -60,34 +62,48 @@ module Arpie
     end
 
     def _read_thread client
+      _transport_id = nil
+
       loop do
         break if client.eof?
 
-        message, answer = nil, nil
+        message, transport_id, serial, answer = nil, nil, nil, nil
         begin
-          message = @protocol.read_message(client)
+          message, transport_id, serial = @protocol.read_message(client)
         rescue => e
-          $stderr.puts "client went away while reading the message: #{e.to_s}"
           break
         end
 
-        begin
-          answer = _handle(message)
-        rescue Exception => e
-          $stderr.puts "Error in handler: #{e.message.to_s}"
-          $stderr.puts e.backtrace.join("\n")
-          $stderr.puts "Returning exception for this call."
-          answer = e
+        _transport_id ||= transport_id
+        @last_answer[_transport_id] ||= [0, 0]
+
+        if transport_id != _transport_id
+          answer = Exception.new("You cannot change your transport_id once set (original id: #{_transport_id.inspect}, given id: #{transport_id.inspect})")
+
+        elsif _transport_id != nil && serial != nil && _transport_id != 0 && serial != 0 && @last_answer[_transport_id][0] == serial
+          answer = @last_answer[_transport_id][1]
+
+        else
+
+          begin
+            answer = _handle(message)
+          rescue Exception => e
+            $stderr.puts "Error in handler: #{e.message.to_s}"
+            $stderr.puts e.backtrace.join("\n")
+            $stderr.puts "Returning exception for this call."
+            answer = e
+          end
+          @last_answer[_transport_id] = [serial, answer]
         end
 
         begin
-          @protocol.write_message(client, answer)
+          @protocol.write_message(client, answer, _transport_id, serial)
         rescue => e
-          puts "client went away while writing the answer:: #{e.to_s}"
           break
         end
       end
 
+      @last_answer.delete(_transport_id)
       @clients.delete(client)
     end
   end

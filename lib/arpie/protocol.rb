@@ -7,32 +7,41 @@ module Arpie
 
     # Read a message from +io+. Block until a message
     # has been received.
+    # Returns [message, transport_id, serial].
     def read_message io
     end
 
-    # Write a message to +io+.
-    def write_message io, message
+    # Write +message+ to +io+, with an optional +serial+.
+    def write_message io, message, transport_id = 0, serial = 0
     end
   end
 
   # A sample binary protocol, upon which others can expand.
-  # The on the wire format is simply the data, prefixed
-  # with data.size.
   class SizedProtocol < Protocol
     def initialize
       @max_message_size = 1024 * 1024
     end
 
     def read_message io
-      sz = io.read(8)
-      expect = sz.unpack("Q")[0]
+      sz = io.read(24)
+      raise EOFError if sz.nil?
+      expect, t_id, serial = sz.unpack("QQQ")
+
+      raise EOFError if expect < 0 || expect > @max_message_size
+
       data = io.read(expect)
+      raise EOFError if sz.nil? || data.size != expect
+
+      $stderr.puts "read: #{data.inspect}, tid = #{t_id}, serial = #{serial}" if $DEBUG
+      [data, t_id, serial]
     end
 
-    def write_message io, message
-      io.write([message.size, message].pack("Qa*"))
+    def write_message io, message, transport_id = 0, serial = 0
+      $stderr.puts "write: #{message.inspect}, tid = #{transport_id}, serial = #{serial}" if $DEBUG
+      io.write([message.size, transport_id, serial, message].pack("QQQa*"))
     end
   end
+
 
   # A procotol that simply Marshals all data sent over
   # this protocol. Served as an example, but a viable
@@ -41,11 +50,12 @@ module Arpie
     public_class_method :new
 
     def read_message io
-      Marshal.load super(io)
+      message, transport_id, serial = super(io)
+      [Marshal.load(message), transport_id, serial]
     end
 
-    def write_message io, message
-      super io, Marshal.dump(message)
+    def write_message io, message, transport_id = 0, serial = 0
+      super io, Marshal.dump(message), transport_id, serial
     end
   end
 end
