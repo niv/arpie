@@ -9,16 +9,18 @@ module Arpie
   # Note that this will only export public instance method
   # of the class as they are defined.
   class ProxyEndpoint < Endpoint
+  
+    # Set a class handler. All instance methods will be
+    # callable over RPC (with a Proxy object).
+    # Consider yourself warned of the security implications:
+    #  proxy.instance_eval ..
     def handle handler
       @handler = handler
-      @interface = @handler.class.public_instance_methods(false)
     end
 
     private
 
     def _handle message
-      @interface.index(message.method.to_s) or raise NoMethodError,
-        "Unknown method."
       @handler.send(message.method, *message.argv)
     end
   end
@@ -26,6 +28,7 @@ module Arpie
   # A Proxy is a wrapper around a transport, which transparently tunnels
   # method calls to the remote ProxyEndpoint.
   class Proxy
+    attr_reader :transport
 
     # Create a new Proxy.
     def initialize transport
