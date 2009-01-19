@@ -23,13 +23,13 @@ module Arpie
     end
 
     def read_message io
-      sz = io.read(24)
+      sz = io.read(24) or raise EOFError, "eof on io while reading header"
       raise EOFError if sz.nil?
       expect, t_id, serial = sz.unpack("QQQ")
 
       raise EOFError if expect < 0 || expect > @max_message_size
 
-      data = io.read(expect)
+      data = io.read(expect) or raise EOFError, "eof on io while reading data"
       raise EOFError if sz.nil? || data.size != expect
 
       $stderr.puts "read: #{data.inspect}, tid = #{t_id}, serial = #{serial}" if $DEBUG
