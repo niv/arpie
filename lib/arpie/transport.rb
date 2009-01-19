@@ -60,11 +60,17 @@ module Arpie
       self
     end
 
+    # Callback that gets invoked before placing a call to the
+    # Endpoint. You can stop the call from happening by raising
+    # an exception (which will be passed on to the caller).
     def pre_call &handler #:yields: transport, message, io, transport_uuid, serial, try
       @on_pre_call = handler
       self
     end
 
+    # Callback that gets invoked after receiving an answer.
+    # You can raise an exception here; and it will be passed
+    # to the caller, instead of returning the value.
     def post_call &handler #:yields: transport, message, reply, io, transport_uuid, serial, try
       @on_post_call = handler
       self

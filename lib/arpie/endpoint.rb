@@ -66,13 +66,17 @@ module Arpie
       self
     end
 
-    # Called when a new client connects.
+    # Callback that gets invoked when a new client connects.
+    # You can <tt>throw :kill_client</tt> here to stop this client
+    # from connecting. Clients stopped this way will invoke
+    # the on_disconnect handler normally.
     def on_connect &handler #:yields: endpoint, io
       @on_connect = handler
       self
     end
 
-    # Called when a client disconnects.
+    # Callback that gets invoked when a client disconnects.
+    # The exception is the error that occured (usually EOFError).
     def on_disconnect &handler #:yields: endpoint, io, transport_id, exception
       @on_disconnect = handler
       self
@@ -93,45 +97,48 @@ module Arpie
     end
 
     def _read_thread client
-      @on_connect.call(self, client)
       _transport_id = nil
       _exception = nil
 
-      loop do
-        message, transport_id, serial, answer = nil, 0, 0, nil
+      catch(:kill_client) {
+        @on_connect.call(self, client)
 
-        begin
-          message, transport_id, serial = @protocol.read_message(client)
-        rescue => e
-          _exception = e
-          break
-        end
-        _transport_id ||= transport_id
-        @last_answer[_transport_id] ||= [0, 0]
-
-        if transport_id != _transport_id
-          answer = Exception.new("You cannot change your transport_id once set (original id: #{_transport_id.inspect}, given id: #{transport_id.inspect})")
-
-        elsif _transport_id != 0 && serial != 0 && @last_answer[_transport_id][0] == serial
-          answer = @last_answer[_transport_id][1]
-
-        else
+        loop do
+          message, transport_id, serial, answer = nil, 0, 0, nil
 
           begin
-            answer = _handle(message)
-          rescue Exception => e
-            answer = @on_handler_error.call(self, message, e)
+            message, transport_id, serial = @protocol.read_message(client)
+          rescue => e
+            _exception = e
+            break
           end
-          @last_answer[_transport_id] = [serial, answer]
-        end
+          _transport_id ||= transport_id
+          @last_answer[_transport_id] ||= [0, 0]
 
-        begin
-          @protocol.write_message(client, answer, _transport_id, serial)
-        rescue => e
-          _exception = e
-          break
+          if transport_id != _transport_id
+            answer = Exception.new("You cannot change your transport_id once set (original id: #{_transport_id.inspect}, given id: #{transport_id.inspect})")
+
+          elsif _transport_id != 0 && serial != 0 && @last_answer[_transport_id][0] == serial
+            answer = @last_answer[_transport_id][1]
+
+          else
+
+            begin
+              answer = _handle(message)
+            rescue Exception => e
+              answer = @on_handler_error.call(self, message, e)
+            end
+            @last_answer[_transport_id] = [serial, answer]
+          end
+
+          begin
+            @protocol.write_message(client, answer, _transport_id, serial)
+          rescue => e
+            _exception = e
+            break
+          end
         end
-      end
+      }
 
       @on_disconnect.call(self, client, _transport_id, _exception)
       @last_answer.delete(_transport_id)
