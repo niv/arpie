@@ -9,18 +9,28 @@ module Arpie
   # Note that this will only export public instance method
   # of the class as they are defined.
   class ProxyEndpoint < Endpoint
-  
+    attr_accessor :interface
+
     # Set a class handler. All instance methods will be
     # callable over RPC (with a Proxy object).
     # Consider yourself warned of the security implications:
     #  proxy.instance_eval ..
-    def handle handler
+    # Optional interface parameter is an array of method
+    # names (as symbols). If given, only those will be
+    # accessible for Transports.
+    def handle handler, interface = nil
       @handler = handler
+      @interface = interface
+      self
     end
 
     private
 
     def _handle message
+      if !@handler.respond_to?(message.meth) || (@interface && !@interface.index(message.meth))
+        raise NoMethodError, "No such method: #{message.meth.inspect}"
+      end
+
       @handler.send(message.meth, *message.argv)
     end
   end
