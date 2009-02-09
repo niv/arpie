@@ -7,12 +7,16 @@ module Arpie
 
     # Read a message from +io+. Block until a message
     # has been received.
-    # Returns [message, transport_id, serial].
+    # Returns the message.
     def read_message io
     end
 
-    # Write +message+ to +io+, with an optional +serial+.
-    def write_message io, message, transport_id = 0, serial = 0
+    # Write +message+ to +io+
+    def write_message io, message
+    end
+
+    def endpoint_klass
+      Arpie::Endpoint
     end
   end
 
@@ -23,22 +27,21 @@ module Arpie
     end
 
     def read_message io
-      sz = io.read(24) or raise EOFError, "eof on io while reading header"
+      sz = io.read(8) or raise EOFError, "eof on io while reading header"
       raise EOFError if sz.nil?
-      expect, t_id, serial = sz.unpack("QQQ")
+      expect = sz.unpack("Q")[0]
 
       raise EOFError if expect < 0 || expect > @max_message_size
+
 
       data = io.read(expect) or raise EOFError, "eof on io while reading data"
       raise EOFError if sz.nil? || data.size != expect
 
-      $stderr.puts "read: #{data.inspect}, tid = #{t_id}, serial = #{serial}" if $DEBUG
-      [data, t_id, serial]
+      data
     end
 
-    def write_message io, message, transport_id = 0, serial = 0
-      $stderr.puts "write: #{message.inspect}, tid = #{transport_id}, serial = #{serial}" if $DEBUG
-      io.write([message.size, transport_id, serial, message].pack("QQQa*"))
+    def write_message io, message
+      io.write([message.size, message].pack("Qa*"))
     end
   end
 
@@ -50,12 +53,11 @@ module Arpie
     public_class_method :new
 
     def read_message io
-      message, transport_id, serial = super(io)
-      [Marshal.load(message), transport_id, serial]
+      Marshal.load super(io)
     end
 
-    def write_message io, message, transport_id = 0, serial = 0
-      super io, Marshal.dump(message), transport_id, serial
+    def write_message io, message
+      super io, Marshal.dump(message)
     end
   end
 end

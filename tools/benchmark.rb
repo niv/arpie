@@ -16,18 +16,17 @@ include Arpie
 
 server = TCPServer.new(51210)
 
-endpoint = ProxyEndpoint.new MarshalProtocol.new
+endpoint = ProxyServer.new MarshalProtocol.new
 endpoint.handle Wrap.new
 
 endpoint.accept do
   server.accept
 end
 
-$transport = Transport.new MarshalProtocol.new
-$transport.connect(false) do |transport|
+$proxy = ProxyClient.new MarshalProtocol.new
+$proxy.connect(true) do
   TCPSocket.new("127.0.0.1", 51210)
 end
-$proxy = Proxy.new $transport
 
 Benchmark.bm {|b|
 
@@ -54,4 +53,13 @@ Benchmark.bm {|b|
   puts "Arpie: proxied MarshalProtocol"
   b.report("   1") {    1.times { $proxy.reverse "benchmark" } }
   b.report("1000") { 1000.times { $proxy.reverse "benchmark" } }
+
+
+  def evented_call
+    $transport.request(ProxyCall.new("reverse",["benchmark"])) do end
+  end
+  puts ""
+#  puts "Arpie: evented messaging"
+#  b.report("   1") {    1.times { evented_call } }
+#  b.report("1000") { 1000.times { evented_call } }
 }

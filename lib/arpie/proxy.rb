@@ -8,7 +8,7 @@ module Arpie
   #
   # Note that this will only export public instance method
   # of the class as they are defined.
-  class ProxyEndpoint < Endpoint
+  class ProxyServer < Server
     attr_accessor :interface
 
     # Set a class handler. All instance methods will be
@@ -26,7 +26,7 @@ module Arpie
 
     private
 
-    def _handle message
+    def _handle endpoint, message
       if !@handler.respond_to?(message.meth) || (@interface && !@interface.index(message.meth))
         raise NoMethodError, "No such method: #{message.meth.inspect}"
       end
@@ -35,19 +35,14 @@ module Arpie
     end
   end
 
-  # A Proxy is a wrapper around a transport, which transparently tunnels
-  # method calls to the remote ProxyEndpoint.
-  class Proxy
-    attr_reader :transport
-
-    # Create a new Proxy.
-    def initialize transport
-      @transport = transport
-    end
+  # A Proxy is a wrapper around a Client, which transparently tunnels
+  # method calls to the remote ProxyServer.
+  # Note that the methods of Client cannot be proxied.
+  class ProxyClient < Client
 
     def method_missing meth, *argv # :nodoc:
       call = ProxyCall.new(meth, argv)
-      ret = @transport.request(call)
+      ret = self.request(call)
       case ret
         when Exception
           raise ret
