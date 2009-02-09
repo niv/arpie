@@ -36,9 +36,14 @@ module Arpie
       @connect_retry = nil
       @connect_sleep = 1.0
       @serial = 0
-      @on_pre_call = lambda {|transport, message, io, transport_uuid, serial, try| }
-      @on_post_call = lambda {|transport, message, reply, io, transport_uuid, serial, try| }
-      @on_error = lambda {|transport, exception| }
+      @on_pre_call = lambda {|transport, message, io, transport_uuid, serial| }
+      @on_post_call = lambda {|transport, message, reply, io, transport_uuid, serial| }
+      @on_error = lambda {|transport, exception|
+        $stderr.puts "Error in Transport IO: #{exception.message.to_s}"
+        $stderr.puts exception.backtrace.join("\n")
+        $stderr.puts "Set Transport#on_error &block to override this."
+      }
+      @event_queue = Queue.new
       generate_uuid
     end
 
@@ -63,7 +68,7 @@ module Arpie
     # Callback that gets invoked before placing a call to the
     # Endpoint. You can stop the call from happening by raising
     # an exception (which will be passed on to the caller).
-    def pre_call &handler #:yields: transport, message, io, transport_uuid, serial, try
+    def pre_call &handler #:yields: transport, message, io, transport_uuid, serial
       @on_pre_call = handler
       self
     end
@@ -71,7 +76,7 @@ module Arpie
     # Callback that gets invoked after receiving an answer.
     # You can raise an exception here; and it will be passed
     # to the caller, instead of returning the value.
-    def post_call &handler #:yields: transport, message, reply, io, transport_uuid, serial, try
+    def post_call &handler #:yields: transport, message, reply, io, transport_uuid, serial
       @on_post_call = handler
       self
     end
@@ -79,33 +84,26 @@ module Arpie
     # Send a message and receive a reply in a synchronous
     # fashion. Will block until transmitted, or until
     # all reconnect attempts failed.
-    def request message
+    def request message, &callback #:yields: transport, message, reply, transport_id, serial
       serial = @serial += 1
-      reply = nil
+      reply, transport_id = nil, nil
 
-      try = 0
+      @on_pre_call.call(self, message, @io, @transport_uuid, serial) if @on_pre_call
 
-      @on_pre_call.call(self, message, @io, @transport_uuid, serial, try) if @on_pre_call
-
-      begin
-        _connect
+      _io_retry do
         @protocol.write_message(@io, message, @transport_uuid, serial)
-        reply, transport_id, serial = @protocol.read_message(@io)
-      rescue => e
-        try += 1
-        @on_error.call(self, e) if @on_error
-
-        if @connect_retry == 0 || (@connect_retry && try > @connect_retry)
-          raise EOFError, "Cannot send request: lost connection after #{try} attempts (#{e.message.to_s})"
-        end
-
-        sleep @connect_sleep
-        begin; @io.close if @io; rescue; end
-        @io = nil
-        retry
       end
 
-      @on_post_call.call(self, message, reply, @io, @transport_uuid, serial, try) if @on_post_call
+      if block_given?
+        @event_thread ||= Thread.new { _event_thread }
+        @event_queue.push([message, callback])
+      else
+        _io_retry do
+          reply, transport_id, serial = @protocol.read_message(@io)
+        end
+      end
+
+      @on_post_call.call(self, message, reply, @io, @transport_uuid, serial) if @on_post_call
 
       case reply
         when Exception
@@ -124,6 +122,50 @@ module Arpie
     end
 
     private
+
+    def _event_thread
+      while @event_queue.pop
+        message, cb = $_
+        reply, transport_id, serial = nil, nil, nil
+
+        _io_retry do
+          reply, transport_id, serial = @protocol.read_message(@io)
+        end
+
+        @on_post_call.call(self, message, reply, @io, @transport_uuid, serial) if @on_post_call
+
+        case reply
+          when Exception
+            raise reply
+          else
+            reply
+        end
+
+        cb.call(self, message, reply, transport_id, serial)
+      end
+    end
+
+   def _io_retry &block
+      try = 0
+
+      begin
+        _connect
+        yield
+      rescue => e
+        try += 1
+        @on_error.call(self, e) if @on_error
+        p e
+
+        if @connect_retry == 0 || (@connect_retry && try > @connect_retry)
+          raise EOFError, "Cannot read from io: lost connection after #{try} attempts (#{e.message.to_s})"
+        end
+
+        sleep @connect_sleep
+        begin; @io.close if @io; rescue; end
+        @io = nil
+        retry
+      end
+    end
 
     def _connect
       @io ||= @connector.call(self)
