@@ -27,8 +27,8 @@ to get the newest version.
 
   e = Arpie::Server.new(Arpie::MarshalProtocol.new)
 
-  e.handle do |ep, msg|
-    msg.reverse
+  e.handle do |server, ep, msg|
+    ep.write_message msg.reverse
   end
 
   e.accept do
@@ -40,7 +40,8 @@ to get the newest version.
     TCPSocket.new("127.0.0.1", 51210)
   end
 
-  puts c.request "hi"
+  c.write_message "hi"
+  puts c.read_message
   # => "ih"
 
 == Advanced, but still simple example: Using Proxy to access remote objects

@@ -9,10 +9,10 @@ include FileUtils
 # Configuration
 ##############################################################################
 NAME = "arpie"
-VERS = "0.0.1"
+VERS = "0.0.2"
 CLEAN.include ["**/.*.sw?", "pkg", ".config", "rdoc", "coverage"]
 RDOC_OPTS = ["--quiet", "--line-numbers", "--inline-source", '--title', \
-  "#{NAME}: A high-performing layered RPC framework. Simple to use, simple to extend.", \
+  "#{NAME}: A high-performing layered networking protocol framework. Simple to use, simple to extend.", \
   '--main', 'README']
 
 DOCS = ["README", "COPYING"]
@@ -34,7 +34,7 @@ spec = Gem::Specification.new do |s|
   s.has_rdoc = true
   s.extra_rdoc_files = DOCS + Dir["doc/*.rdoc"]
   s.rdoc_options += RDOC_OPTS + ["--exclude", "^(examples|extras)\/"]
-  s.summary = "a synchronous RPC library based on google protobuf"
+  s.summary = "A high-performing layered networking protocol framework. Simple to use, simple to extend."
   s.description = s.summary
   s.author = "Bernhard Stoeckner"
   s.email = "elven@swordcoast.net"
