@@ -67,17 +67,12 @@ module Arpie
 
     # Set a message handler, which is a proc that will receive
     # three parameters: the server, the endpoint, and the message.
-    # Its return value will be sent as the reply.
     #
     # Example:
-    #  my_server.handle do |endpoint, message|
+    #  my_server.handle do |server, endpoint, message|
     #    puts "Got a message: #{message.inspect}"
-    #    "ok"
+    #    endpoint.write_message "ok"
     #  end
-    #
-    # You can throw a :defer to return immediately from the handler;
-    # you are then responsible for sending the answer for yourself
-    # through endpoint.write_message answer.
     def handle &handler #:yields: server, endpoint, message
       raise ArgumentError, "No handler given; need a block or proc." unless handler
       @handler = handler
@@ -113,7 +108,7 @@ module Arpie
       self
     end
 
-    private
+  private
 
     def _handle endpoint, message
       @handler.call(self, endpoint, message)
@@ -144,20 +139,11 @@ module Arpie
             break
           end
 
-          catch(:defer) {
-            begin
-              answer = _handle(endpoint, message)
-            rescue Exception => e
-              answer = @on_handler_error.call(self, endpoint, message, e)
-            end
-
-            begin
-              endpoint.write_message(answer)
-            rescue => e
-              _exception = e
-              break
-            end
-          }
+          begin
+            answer = _handle(endpoint, message)
+          rescue Exception => e
+            answer = @on_handler_error.call(self, endpoint, message, e)
+          end
         end
       }
 
