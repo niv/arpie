@@ -1,8 +1,5 @@
 module Arpie
 
-  # The RPC call encapsulation used by ProxyEndpoint and Proxy.
-  class ProxyCall < Struct.new(:ns, :meth, :argv); end
-
   # A Endpoint which supports arbitary objects as handlers,
   # instead of a proc.
   #
@@ -46,7 +43,7 @@ module Arpie
     end
 
     def method_missing meth, *argv # :nodoc:
-      call = ProxyCall.new(@namespace, meth, argv)
+      call = RPCProtocol::Call.new(@namespace, meth, argv)
       ret = self.request(call)
       case ret
         when Exception

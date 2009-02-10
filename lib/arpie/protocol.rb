@@ -176,4 +176,105 @@ module Arpie
       YAML.load(obj)
     end
   end
+
+  # A RPC Protocol encapsulates RPCProtocol::Call
+  # messages.
+  class RPCProtocol < Protocol
+
+    # A RPC call.
+    class Call < Struct.new(:ns, :meth, :argv); end
+  end
+
+  # A XMLRPC Protocol based on rubys xmlrpc stdlib.
+  # This does not encode HTTP headers; usage together with
+  # a real webserver is advised.
+  class XMLRPCProtocol < RPCProtocol
+    public_class_method :new
+
+    require 'xmlrpc/create'
+    require 'xmlrpc/parser'
+    require 'xmlrpc/config'
+
+    VALID_MODES = [:client, :server].freeze
+
+    attr_reader :mode
+    attr_accessor :writer
+    attr_accessor :parser
+
+    def initialize mode, writer = XMLRPC::Create, parser = XMLRPC::XMLParser::REXMLStreamParser
+      super()
+      raise ArgumentError, "Not a valid mode, expecting one of #{VALID_MODES.inspect}" unless
+        VALID_MODES.index(mode)
+
+      @mode = mode
+      @writer = writer.new
+      @parser = parser.new
+    end
+
+    def to obj
+      case @mode
+        when :client
+          @writer.methodCall(obj.ns + obj.meth, *obj.argv)
+
+        when :server
+          case obj
+            when Exception
+              # TODO: wrap XMLFault
+            else
+              @writer.methodResponse(true, obj)
+            end
+      end
+    end
+
+    def from obj
+      case @mode
+        when :client
+          @parser.parseMethodResponse(obj)[1]
+
+        when :server
+          vv = @parser.parseMethodCall(obj)
+          RPCProtocol::Call.new('', vv[0], vv[1])
+      end
+    end
+
+    def complete? obj
+      case @mode
+        when :client
+          obj.index("</methodResponse>")
+        when :server
+          obj.index("</methodCall>")
+      end
+    end
+  end
+
+  # This simulates a very basic HTTP XMLRPC client/server.
+  # It is not recommended to use this with production code.
+  class HTTPXMLRPCProtocol < XMLRPCProtocol
+    def to obj
+      r = super
+      case @mode
+        when :client
+          "GET / HTTP/1.[01]\r\nContent-Length: #{r.size}\r\n\r\n" + r
+        when :server
+          "HTTP/1.0 200 OK\r\nContent-Length: #{r.size}\r\n\r\n" + r
+      end
+    end
+
+    def from obj
+      # Simply strip all HTTP headers.
+      header, obj = obj.split(/\r\n\r\n/, 2)
+      super(obj)
+    end
+
+
+    def complete? obj
+      # Complete if: has headers, has content-length, has data of content-length
+      header, body = obj.split(/\r\n\r\n/, 2)
+
+      header =~ /content-length:\s+(\d+)/i or return nil
+
+      content_length = $1.to_i
+      body.size == content_length ? header.size + 4 + body.size : nil
+    end
+  end
 end
