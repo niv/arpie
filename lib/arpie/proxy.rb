@@ -1,7 +1,7 @@
 module Arpie
 
   # The RPC call encapsulation used by ProxyEndpoint and Proxy.
-  class ProxyCall < Struct.new(:meth, :argv); end
+  class ProxyCall < Struct.new(:ns, :meth, :argv); end
 
   # A Endpoint which supports arbitary objects as handlers,
   # instead of a proc.
@@ -31,17 +31,22 @@ module Arpie
         raise NoMethodError, "No such method: #{message.meth.inspect}"
       end
 
-      @handler.send(message.meth, *message.argv)
+      ret = @handler.send(message.meth, *message.argv)
+      endpoint.write_message(ret)
     end
   end
 
   # A Proxy is a wrapper around a Client, which transparently tunnels
   # method calls to the remote ProxyServer.
   # Note that the methods of Client cannot be proxied.
-  class ProxyClient < Client
+  class ProxyClient < RPCClient
+
+    def initialize protocol, namespace = ""
+      @protocol, @namespace = protocol, namespace
+    end
 
     def method_missing meth, *argv # :nodoc:
-      call = ProxyCall.new(meth, argv)
+      call = ProxyCall.new(@namespace, meth, argv)
       ret = self.request(call)
       case ret
         when Exception
