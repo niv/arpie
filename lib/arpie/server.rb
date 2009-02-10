@@ -20,6 +20,8 @@ module Arpie
     def write_message message
       @server.protocol.write_message(@io, message)
     end
+    alias_method :<<, :write_message
+
   end
 
   # A Server is the server-side part of a RPC setup.

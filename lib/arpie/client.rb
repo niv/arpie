@@ -64,6 +64,7 @@ module Arpie
         @protocol.write_message(@write_io, message)
       end
     end
+    alias_method :<<, :write_message
 
     # Receive a message. Blocks until received.
     def read_message
