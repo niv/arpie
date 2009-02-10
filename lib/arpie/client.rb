@@ -110,10 +110,37 @@ module Arpie
     end
   end
 
+  # A simple pseudo event-based client, using a thread
+  # with a callback.
+  class EventedClient < Client
+    private :read_message
+
+    # Set a callback for incoming messages.
+    def handle &handler #:yields: client, message
+      @handler = handler
+    end
+
+  private
+
+    def _read_thread
+      loop do
+        io_retry do
+          message = read_message
+          @handler and @handler.call(self, message)
+        end
+      end
+    end
+
+    def _connect
+      super
+      @read_thread ||= Thread.new { _read_thread }
+    end
+  end
+
+
   # A Client extension which provides a RPC-like
   # interface. Used by ProxyClient.
   class RPCClient < Client
-
     private :read_message, :write_message
 
     def initialize protocol
