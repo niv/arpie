@@ -136,7 +136,7 @@ module Arpie
 
           begin
             message = endpoint.read_message
-          rescue => e
+          rescue IOError => e
             _exception = e
             break
           end

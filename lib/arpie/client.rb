@@ -83,7 +83,7 @@ module Arpie
       begin
         _connect
         yield self
-      rescue => e
+      rescue IOError => e
         try += 1
         @on_error.call(self, e) if @on_error
         p e
