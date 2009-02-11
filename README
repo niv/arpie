@@ -1,11 +1,13 @@
 = What's this?
 
-Arpie is a end-to-end framework for sending synchronous message-and-answer
-pairs, and serves as the basis for a RPC framework, handling a variety of protocols,
-including a generic Marshal proof of concept; writing your own Protocol is quite simple.
+Arpie is a end-to-end framework for sending protocol-encoded messages over arbitary
+IO channels, including UNIX/TCP Sockets, Pipes, and pidgeon carriers (depending on
+your implementation details).
 
-* It uses ruby threads on the server side, one per connection.
-* The client is single-threaded.
+Arpie also provides a robust replay-protected RPC framework.
+
+The Arpie server uses one ruby-thread per client, the client runs entirely in the
+calling thread; though an example implementation for evented callbacks is provided.
 
 == Source Code
 
@@ -36,7 +38,7 @@ to get the newest version.
   end
 
   c = Arpie::Client.new(Arpie::MarshalProtocol.new)
-  c.connect do |transport|
+  c.connect do
     TCPSocket.new("127.0.0.1", 51210)
   end
 
@@ -104,11 +106,13 @@ under tools/). A sample output follows; your milage may vary.
         user     system      total        real
 
   native DRb
-     1  0.000000   0.000000   0.000000 (  0.000167)
-  1000  0.120000   0.010000   0.130000 (  0.121834)
+     1  0.000000   0.000000   0.000000 (  0.000172)
+  1000  0.110000   0.010000   0.120000 (  0.119767)
 
-  ruby xmlrpc/server - too slow to benchmark
+  Arpie: proxied MarshalProtocol with replay protection through uuidtools
+     1  0.000000   0.000000   0.010000 (  0.075373)
+  1000  0.530000   0.090000   0.600000 (  0.608665)
 
-  Arpie: proxied MarshalProtocol
-     1  0.000000   0.000000   0.000000 (  0.000617)
-  1000  0.100000   0.020000   0.120000 (  0.114573)
+  Arpie: proxied MarshalProtocol without replay protection
+     1  0.000000   0.000000   0.000000 (  0.000173)
+  1000  0.170000   0.020000   0.190000 (  0.194649)
