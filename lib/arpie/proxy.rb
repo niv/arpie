@@ -1,3 +1,5 @@
+require 'uuidtools'
+
 module Arpie
 
   # A Endpoint which supports arbitary objects as handlers,
@@ -13,6 +15,20 @@ module Arpie
     # Set this to nil to allow calling of ALL methods, but be
     # warned of the security implications (instance_eval, ..).
     attr_accessor :interface
+
+    # Set this to false to disable replay protection.
+    attr_accessor :uuid_tracking
+
+    # The maximum number of method call results to remember.
+    # Defaults to 100, which should be enough for everyone. ;)
+    attr_accessor :max_uuids
+
+    def initialize *va
+      super
+      @uuids = {}
+      @max_uuids = 100
+      @uuid_tracking = true
+    end
 
     # Set a class handler. All public instance methods will be
     # callable over RPC (with a Proxy object) (see attribute interface).
@@ -32,8 +48,21 @@ module Arpie
         raise NoMethodError, "No such method: #{message.meth.inspect}"
       end
 
-      ret = @handler.send(message.meth, *message.argv)
-      endpoint.write_message(ret)
+      # Prune old serials. This can probably be optimized, but works well enough for now.
+      if @uuid_tracking && message.uuid
+        timestamps = @uuids.values.map {|v| v[0] }.sort
+        latest_timestamp = timestamps[-@max_uuids]
+        @uuids.reject! {|uuid, (time, value)|
+          time < latest_timestamp
+        } if latest_timestamp
+
+        endpoint.write_message((@uuids[message.uuid] ||=
+          [Time.now, @handler.send(message.meth, *message.argv)])[1])
+
+      else
+        endpoint.write_message @handler.send(message.meth, *message.argv)
+      end
+
     end
   end
 
@@ -43,11 +72,30 @@ module Arpie
   class ProxyClient < RPCClient
 
     def initialize protocol, namespace = ""
+      super(protocol)
       @protocol, @namespace = protocol, namespace
+      @uuid_generator = lambda {|client, method, argv|
+        UUID.timestamp_create.to_i.to_s
+      }
+    end
+
+    # Set up a new UUID generator for this proxy client.
+    # Make sure that this yields really random numbers.
+    # The default uses the uuidtools gem and is usually okay.
+    # You can simply set this to nil (by calling it without
+    # a block).
+    #
+    # Note that disabling this disables replay protection.
+    def uuid_generator &handler #:yields: client, method, argv
+      @uuid_generator = handler
+      self
     end
 
     def method_missing meth, *argv # :nodoc:
-      call = RPCProtocol::Call.new(@namespace, meth, argv)
+      uuid = @uuid_generator ?
+        @uuid_generator.call(self, meth, argv) : nil
+
+      call = RPCProtocol::Call.new(@namespace, meth, argv, uuid)
       ret = self.request(call)
       case ret
         when Exception

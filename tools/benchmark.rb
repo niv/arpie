@@ -39,27 +39,13 @@ Benchmark.bm {|b|
   b.report("1000") { 1000.times { drbobject.reverse "benchmark" } }
 
   puts ""
-  puts "ruby xmlrpc/server - too slow to benchmark"
-  #server = XMLRPC::Server.new(51211, "127.0.0.1", 4, nil, false)
-  #server.add_handler(XMLRPC::iPIMethods("wrap"), Wrap.new)
-  #server_thread = Thread.new { server.serve }
-  #client = XMLRPC::Client.new( "127.0.0.1", "/", 51211)
-  #b.report("   1") {    1.times { client.call("wrap.reverse", "benchmark") } }
-  #b.report("1000") { 1000.times { client.call("wrap.reverse", "benchmark") } }
-  #server.shutdown
-  #server_thread.join
-
-  puts ""
-  puts "Arpie: proxied MarshalProtocol"
+  puts "Arpie: proxied MarshalProtocol with replay protection through uuidtools"
   b.report("   1") {    1.times { $proxy.reverse "benchmark" } }
   b.report("1000") { 1000.times { $proxy.reverse "benchmark" } }
 
-
-  def evented_call
-    $transport.request(ProxyCall.new("reverse",["benchmark"])) do end
-  end
   puts ""
-#  puts "Arpie: evented messaging"
-#  b.report("   1") {    1.times { evented_call } }
-#  b.report("1000") { 1000.times { evented_call } }
+  puts "Arpie: proxied MarshalProtocol without replay protection"
+  $proxy.uuid_generator
+  b.report("   1") {    1.times { $proxy.reverse "benchmark" } }
+  b.report("1000") { 1000.times { $proxy.reverse "benchmark" } }
 }

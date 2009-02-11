@@ -182,7 +182,7 @@ module Arpie
   class RPCProtocol < Protocol
 
     # A RPC call.
-    class Call < Struct.new(:ns, :meth, :argv); end
+    class Call < Struct.new(:ns, :meth, :argv, :uuid); end
   end
 
   # A XMLRPC Protocol based on rubys xmlrpc stdlib.
