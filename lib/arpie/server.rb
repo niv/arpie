@@ -7,18 +7,19 @@ module Arpie
   class Endpoint
     attr_reader :io
 
-    attr_reader :server
+    attr_reader :protocol
 
-    def initialize server, io
-      @io, @server = io, server
+    def initialize protocol, io
+      @protocol, @io = protocol, io
+      @protocol.reset
     end
 
     def read_message
-      @server.protocol.read_message(@io)
+      @protocol.read_message(@io)
     end
 
     def write_message message
-      @server.protocol.write_message(@io, message)
+      @protocol.write_message(@io, message)
     end
     alias_method :<<, :write_message
 
@@ -119,7 +120,7 @@ module Arpie
     def _acceptor_thread
       loop do
         client = @acceptor.call(self)
-        c = @protocol.endpoint_klass.new(self, client)
+        c = @protocol.endpoint_klass.new(@protocol.clone, client)
         Thread.new { _read_thread(c) }
       end
     end
