@@ -106,6 +106,7 @@ module Arpie
     def _connect
       @read_io and return
       @read_io, @write_io = @connector.call(self)
+      @protocol.reset
       @write_io ||= @read_io
     end
   end
