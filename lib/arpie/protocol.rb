@@ -123,7 +123,7 @@ module Arpie
 
     def complete? obj
       sz = obj.unpack("Q")[0]
-      obj.size == sz + 8 ? sz + 8 : nil
+      sz && obj.size >= sz + 8 ? sz + 8 : nil
     end
 
     def from obj
