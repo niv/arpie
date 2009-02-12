@@ -51,7 +51,9 @@ module Arpie
 
       begin
         # Prune old serials. This can probably be optimized, but works well enough for now.
-        if @uuid_tracking && message.uuid
+        if @uuid_tracking && message.uuid && message.uuid.is_a?(Numeric)
+          message.uuid &= 0xffffffffffffffff
+
           timestamps = @uuids.values.map {|v| v[0] }.sort
           latest_timestamp = timestamps[-@max_uuids]
           @uuids.reject! {|uuid, (time, value)|
