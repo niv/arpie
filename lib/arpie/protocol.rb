@@ -103,7 +103,7 @@ module Arpie
   # Note that all parameters are expected to be strings.
   class ShellwordsProtocol < SeparatorProtocol
     def to obj
-      super Shellwords.join(obj)
+      super Shellwords.join(obj.map {|x| x.to_s })
     end
 
     def from obj
