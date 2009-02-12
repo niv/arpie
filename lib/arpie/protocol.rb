@@ -156,7 +156,8 @@ module Arpie
     public_class_method :new
 
     def complete? obj
-      obj =~ /\.\.\.$/
+      x = obj =~ /^\.\.\.$/x
+      x.nil? ? nil : x + 4
     end
 
     def to obj
