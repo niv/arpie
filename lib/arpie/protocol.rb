@@ -26,7 +26,9 @@ module Arpie
     def read_message io
       until idx = complete?(@buffer) do
         select([io], nil, nil, 0.1) or next
-        @buffer << io.readpartial(MTU)
+
+        @buffer << io.readpartial(MTU) rescue raise $!.class,
+          "#{$!.to_s}; unparseable bytes remaining in buffer: #{@buffer.size}"
       end
 
       message, @buffer = from(@buffer[0, idx]), @buffer[idx .. -1] || ""
