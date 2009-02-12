@@ -45,24 +45,32 @@ module Arpie
     def _handle endpoint, message
       if !@handler.respond_to?(message.meth.to_sym) ||
           (@interface && !@interface.index(message.meth.to_sym))
-        raise NoMethodError, "No such method: #{message.meth.inspect}"
+        endpoint.write_message NoMethodError.new("No such method: #{message.meth.inspect}")
+        return
       end
 
-      # Prune old serials. This can probably be optimized, but works well enough for now.
-      if @uuid_tracking && message.uuid
-        timestamps = @uuids.values.map {|v| v[0] }.sort
-        latest_timestamp = timestamps[-@max_uuids]
-        @uuids.reject! {|uuid, (time, value)|
-          time < latest_timestamp
-        } if latest_timestamp
+      begin
+        # Prune old serials. This can probably be optimized, but works well enough for now.
+        if @uuid_tracking && message.uuid
+          timestamps = @uuids.values.map {|v| v[0] }.sort
+          latest_timestamp = timestamps[-@max_uuids]
+          @uuids.reject! {|uuid, (time, value)|
+            time < latest_timestamp
+          } if latest_timestamp
 
-        endpoint.write_message((@uuids[message.uuid] ||=
-          [Time.now, @handler.send(message.meth, *message.argv)])[1])
+          endpoint.write_message((@uuids[message.uuid] ||=
+            [Time.now, @handler.send(message.meth, *message.argv)])[1])
 
-      else
-        endpoint.write_message @handler.send(message.meth, *message.argv)
+        else
+          endpoint.write_message @handler.send(message.meth, *message.argv)
+        end
+      rescue IOError
+        raise
+
+      rescue Exception => e
+        endpoint.write_message RuntimeError.new("Internal Error")
+        raise
       end
-
     end
   end
 
