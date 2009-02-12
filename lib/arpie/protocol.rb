@@ -10,8 +10,12 @@ module Arpie
 
     private_class_method :new
 
+    # The endpoint class of this Protocol.
+    # Defaults to Arpie::Endpoint
+    attr_accessor :endpoint_class
+
     def initialize
-      @endpoint_klass = Arpie::Endpoint
+      @endpoint_class = Arpie::Endpoint
       @buffer = ""
       reset
     end
@@ -66,10 +70,6 @@ module Arpie
     # messages need to be discarded.
     def reset
       @buffer = ""
-    end
-
-    def endpoint_klass
-      Arpie::Endpoint
     end
   end
 

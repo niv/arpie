@@ -120,7 +120,7 @@ module Arpie
     def _acceptor_thread
       loop do
         client = @acceptor.call(self)
-        c = @protocol.endpoint_klass.new(@protocol.clone, client)
+        c = @protocol.endpoint_class.new(@protocol.clone, client)
         Thread.new { _read_thread(c) }
       end
     end
