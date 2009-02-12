@@ -10,37 +10,29 @@ module Arpie
 
     private_class_method :new
 
-    attr_reader :message
-
     def initialize
-      @message = nil
+      @endpoint_klass = Arpie::Endpoint
       @buffer = ""
       reset
-    end
-
-    # Reads data from +io+. Returns true, if a whole
-    # message has been read, or false if more data is needed.
-    # The read message can be retrieved via Protocol#message.
-    def read_partial io
-      @buffer << io.readpartial(MTU)
-
-      if idx = complete?(@buffer)
-        @message = from @buffer[0, idx]
-        @buffer = @buffer[idx, -1] || ""
-        return true
-      end
-
-      return false
     end
 
     # Read a message from +io+. Block until a message
     # has been received.
     # Returns the message.
     def read_message io
-      select([io]) until read_partial(io)
-      @message
+      until idx = complete?(@buffer) do
+        select([io], nil, nil, 0.1) or next
+        @buffer << io.readpartial(MTU)
+      end
+
+      message, @buffer = from(@buffer[0, idx]), @buffer[idx .. -1] || ""
+
+      message
     end
 
+    # Write a partial message part, as it is seen on the wire.
+    # You do not need to call this usually; write_message does
+    # the proper conversion for you.
     def write_raw_partial io, message
       io.write(message)
     end
@@ -73,7 +65,6 @@ module Arpie
     # when the underlying connection drops, and any half-read
     # messages need to be discarded.
     def reset
-      @message = nil
       @buffer = ""
     end
 
