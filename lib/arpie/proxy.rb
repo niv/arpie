@@ -75,7 +75,7 @@ module Arpie
       super(protocol)
       @protocol, @namespace = protocol, namespace
       @uuid_generator = lambda {|client, method, argv|
-        UUID.timestamp_create.to_i.to_s
+        UUID.random_create.to_i
       }
     end
 
