@@ -80,10 +80,11 @@ module Arpie
   # method calls to the remote ProxyServer.
   # Note that the methods of Client cannot be proxied.
   class ProxyClient < RPCClient
+    attr_accessor :namespace
 
-    def initialize protocol, namespace = ""
-      super(protocol)
-      @protocol, @namespace = protocol, namespace
+    def initialize *protocols
+      super
+      @protocol, @namespace = protocol, ""
       @uuid_generator = lambda {|client, method, argv|
         UUID.random_create.to_i
       }
@@ -105,7 +106,7 @@ module Arpie
       uuid = @uuid_generator ?
         @uuid_generator.call(self, meth, argv) : nil
 
-      call = RPCProtocol::Call.new(@namespace, meth, argv, uuid)
+      call = Arpie::RPCall.new(@namespace, meth, argv, uuid)
       ret = self.request(call)
       case ret
         when Exception

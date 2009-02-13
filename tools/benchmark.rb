@@ -16,14 +16,14 @@ include Arpie
 
 server = TCPServer.new(51210)
 
-endpoint = ProxyServer.new MarshalProtocol.new
+endpoint = ProxyServer.new MarshalProtocol.new, SizedProtocol.new
 endpoint.handle Wrap.new
 
 endpoint.accept do
   server.accept
 end
 
-$proxy = ProxyClient.new MarshalProtocol.new
+$proxy = ProxyClient.new MarshalProtocol.new, SizedProtocol.new
 $proxy.connect(true) do
   TCPSocket.new("127.0.0.1", 51210)
 end

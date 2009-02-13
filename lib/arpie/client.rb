@@ -7,6 +7,7 @@ module Arpie
   #
   # See README for examples.
   class Client
+    # The protocol chain used.
     attr_reader :protocol
 
     # How often should this Client retry a connection.
@@ -22,8 +23,8 @@ module Arpie
     # unnecessary load in case of network failure.
     attr_accessor :connect_sleep
 
-    def initialize protocol
-      @protocol = protocol
+    def initialize *protocols
+      @protocol = Arpie::ProtocolChain.new(*protocols)
       @read_io = nil
       @write_io = nil
       @connector = lambda { raise ArgumentError, "No connector specified, cannot connect to Endpoint." }
@@ -69,7 +70,7 @@ module Arpie
     # Receive a message. Blocks until received.
     def read_message
       io_retry do
-        message = @protocol.read_message(@read_io)
+        return @protocol.read_message(@read_io)
       end
     end
 
@@ -144,8 +145,8 @@ module Arpie
   class RPCClient < Client
     private :read_message, :write_message
 
-    def initialize protocol
-      super(protocol)
+    def initialize *protocols
+      super(*protocols)
 
       @on_pre_call = lambda {|client, message| }
       @on_post_call = lambda {|client, message, reply| }

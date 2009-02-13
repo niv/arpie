@@ -2,7 +2,7 @@ require 'rubygems'
 
 Thread.abort_on_exception = true
 
-unless Object.const_defined?('Sequel')
+unless Object.const_defined?('Arpie')
   $:.unshift(File.join(File.dirname(__FILE__), "../lib/"))
   require 'arpie'
 end

@@ -11,8 +11,8 @@ describe "ClientServer", :shared => true do
   before do
     @handler_errors = 0
     $evaluate_calls = 0
-    @client = Arpie::Client.new(Arpie::MarshalProtocol.new)
-    @server = Arpie::Server.new(Arpie::MarshalProtocol.new)
+    @client = Arpie::Client.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
+    @server = Arpie::Server.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
     @client.connect do TCPSocket.new('127.0.0.1', 56000) end
     @server.accept do @tcp_server.accept end
     @server.on_handler_error do |s, e, p, x|
@@ -33,8 +33,8 @@ describe "ProxyClientServer", :shared => true do
   before do
     @handler_errors = 0
     $evaluate_calls = 0
-    @client = Arpie::ProxyClient.new(Arpie::MarshalProtocol.new)
-    @server = Arpie::ProxyServer.new(Arpie::MarshalProtocol.new)
+    @client = Arpie::ProxyClient.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
+    @server = Arpie::ProxyServer.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
     @client.connect do TCPSocket.new('127.0.0.1', 56001) end
     @server.accept do @tcp_server.accept end
     @server.on_handler_error do |s, e, p, x|
@@ -60,7 +60,7 @@ describe Arpie::EventedClient do
   it_should_behave_like "ClientServer"
 
   before do
-    @client = Arpie::EventedClient.new(Arpie::MarshalProtocol.new)
+    @client = Arpie::EventedClient.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
     @handler_calls = 0
     @queue = Queue.new
     @client.handle do

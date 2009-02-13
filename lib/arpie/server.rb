@@ -36,11 +36,11 @@ module Arpie
 
     attr_reader :endpoints
 
-    # Create a new Server with the given +Protocol+.
+    # Create a new Server with the given protocols.
     # You will need to define a handler, and an acceptor
     # before it becomes operational.
-    def initialize protocol
-      @protocol = protocol
+    def initialize *protocols
+      @protocol = Arpie::ProtocolChain.new(*protocols)
       @endpoints = []
 
       @on_connect = lambda {|server, endpoint| }
