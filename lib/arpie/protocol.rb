@@ -64,6 +64,16 @@ module Arpie
       obj
     end
 
+    # Truncate +len+ bytes from the start of the buffer.
+    # Returns the bytes that were skipped.
+    def skip len
+      len = len.to_i
+      raise ArgumentError, "len has to be positive (given: #{len.inspect})" if len < 0
+      buf = @buffer[0, len]
+      @buffer[0, len] = ""
+      buf
+    end
+
     # Call this within complete? to restart from the
     # beginning (of the current buffer).
     def again
