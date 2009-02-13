@@ -6,6 +6,7 @@ module Arpie
   # A Protocol converts messages (which are arbitary objects)
   # to a suitable on-the-wire format, and back.
   class Protocol
+    class TryAgain < RuntimeError ; end
     MTU = 1024
 
     private_class_method :new
@@ -24,7 +25,12 @@ module Arpie
     # has been received.
     # Returns the message.
     def read_message io
-      until idx = complete?(@buffer) do
+      until idx = complete?(@buffer) rescue case $!
+        when TryAgain
+          retry
+        else
+          raise
+      end do
         select([io], nil, nil, 0.1) or next
 
         @buffer << io.readpartial(MTU) rescue raise $!.class,
@@ -56,6 +62,12 @@ module Arpie
     # Convert obj from on-the-wire-format.
     def from obj
       obj
+    end
+
+    # Call this within complete? to restart from the
+    # beginning (of the current buffer).
+    def again
+      raise TryAgain
     end
 
     # Returns a Fixnum if the given obj contains a complete message.
