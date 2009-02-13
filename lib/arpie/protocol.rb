@@ -4,6 +4,15 @@ require 'yaml'
 module Arpie
   MTU = 1024
   class StreamError < IOError ; end
+  class EIncomplete < RuntimeError ; end
+  class ETryAgain < RuntimeError ; end
+  class ESkipAhead < RuntimeError
+    attr_reader :bytes
+
+    def initialize bytes
+      @bytes = bytes
+    end
+  end
 
   class RPCall < Struct.new(:ns, :meth, :argv, :uuid); end
 
@@ -36,6 +45,7 @@ module Arpie
 
       @chain = protocols
       @buffer = ""
+      @messages = []
     end
 
     # Convert the given +message+ to wire format by
@@ -48,55 +58,56 @@ module Arpie
 
     # Convert the given +binary+ to message format
     # by passing it through all protocols in the chain.
-    # May rise EIncomplete or EStreamError, in which case
+    # May raise EStreamError or EIncomplete, in the case that
     # +binary+ does not satisfy one of the protocols.
+    #
+    # Returns an array of messages, even if only one message
+    # was contained.
     def from binary
-      @chain.reverse.inject(binary) {|msg, p|
-        p.from(msg) rescue case $!
-          when ETryAgain
-            retry
-
-          else
-            raise
-        end
-      }
+      raise NotImplementedError
     end
 
     # Read a message from +io+. Block until all protocols
     # agree that a message has been received.
     #
-    # May rise EIncomplete when a protocol in the middle of
-    # the chain cannot be satisfied
-    #
     # Returns the message.
     def read_message io
-      message = @buffer
+      return @messages.shift if @messages.size > 0
+
+      messages = [@buffer]
 
       @chain.reverse.each_with_index {|p, p_index|
-        message, cut_to_index = message, nil
-        loop do
-          case catch(:int) {
-            message, cut_to_index = p.from(message)
-            nil
-          }
-            when nil
-              break
+        cut_to_index = nil
+        messages_for_next = []
 
-            when :incomplete
-              raise $!, "#{e.to_s}; only the first protocol in the chain can request more data." if
+        # For each message the predecessing protocol gave us
+        messages.each do |message|
+          cut_to_index = p.from(message) do |object|
+            messages_for_next << object
+          end rescue case $!
+
+            when EIncomplete
+              raise $!, "#{$!.to_s}; only the first protocol in the chain can request more data." if
                 p_index != 0
 
               select([io])
               @buffer << io.readpartial(MTU) rescue raise $!.class,
                 "#{$!.to_s}; unparseable bytes remaining in buffer: #{@buffer.size}"
+              retry
 
-            when :try_again
-              # do nothing, loop over
+            when ETryAgain
+              retry
 
             else
-              raise "Unknown :int: #{cmd.inspect}"
-          end
-        end
+              raise
+
+          end # rescue
+        end # messages.each
+
+        raise "BUG: #{p.class.to_s}#from did not yield a message." if
+          messages_for_next.size == 0
+
+        messages = messages_for_next
 
         if p_index == 0
           if cut_to_index.nil? || cut_to_index < 0
@@ -106,8 +117,12 @@ module Arpie
             @buffer[0, cut_to_index] = ""
           end
         end
+
+        messages
       }
 
+      message = messages.shift
+      @messages = messages
       message
     end
 
@@ -124,6 +139,7 @@ module Arpie
   # A Protocol converts messages (which are arbitary objects)
   # to a suitable on-the-wire format, and back.
   class Protocol
+
     # Set this to true in child classes which implement
     # message separation within a stream.
     CAN_SEPARATE_MESSAGES = false
@@ -133,35 +149,46 @@ module Arpie
       obj
     end
 
-    # Convert +binary+ from on-the-wire-format.
+    # Extract message(s) from +binary+.i
     #
-    # Returns [object, index].
+    # Yields each message found, with all protocol-specifics stripped.
     #
-    # index is the index within +binary+ where
-    # +object+ ends, and is mandatory when
-    # CAN_SEPARATE_MESSAGES is true for this class.
-    def from binary
-      [binary, 0]
+    # Should call +incomplete+ when no message can be read yet.
+    #
+    # Must not block by waiting for multiple messages if a message
+    # can be yielded directly.
+    #
+    # Must not return without calling +incomplete+ or yielding a message.
+    #
+    # Must return the number of bytes these message(s) occupied in the stream,
+    # for truncating of the same.
+    # Mandatory when CAN_SEPARATE_MESSAGES is true for this class, but ignored
+    # otherwise.
+    def from binary, &block #:yields: message
+      yield binary
+      0
     end
 
-    # Call this within Protocol#from to restart from the
-    # beginning (of the current buffer).
+    # Call this within Protocol#from to reparse the current
+    # message.
     def again
-      throw :int, :try_again
+      raise ETryAgain
     end
 
     # Tell the protocol chain that the given chunk of data
     # is not enough to construct a whole message.
     # This breaks out of Protocol#from.
     def incomplete
-      throw :int, :incomplete
+      raise EIncomplete
     end
 
     # Call this if you think the stream has been corrupted, or
     # non-protocol data arrived.
+    # +message+ is the text to display.
+    # +data+ is the optional misbehaving data for printing.
     # This breaks out of Protocol#from.
-    def stream_error
-      raise StreamError, "#{self.class.to_s} thinks the data is bogus."
+    def bogon data = nil, message = nil
+      raise StreamError, "#{self.class.to_s}#{message.nil? ? " thinks the data is bogus" : ": " + message }#{data.nil? ? "" : ": " + data.inspect}."
     end
   end
 
@@ -174,7 +201,8 @@ module Arpie
     def from binary
       sz = binary.unpack('Q')[0] or incomplete
       binary.size >= sz + 8 or incomplete
-      [binary[8, sz], 8 + sz]
+      yield binary[8, sz]
+      8 + sz
     end
 
     def to object
@@ -192,7 +220,7 @@ module Arpie
     end
 
     def from binary
-      Marshal.load(binary)
+      yield Marshal.load(binary)
     end
   end
 
@@ -208,7 +236,9 @@ module Arpie
 
     def from binary
       idx = binary.index(@separator) or incomplete
-      [binary[0, idx], @separator.size + idx]
+      yield binary[0, idx]
+
+      @separator.size + idx
     end
 
     def to object
@@ -225,7 +255,7 @@ module Arpie
     end
 
     def from binary
-      Shellwords.shellwords(binary)
+      yield Shellwords.shellwords(binary)
     end
   end
 
@@ -240,7 +270,8 @@ module Arpie
 
     def from binary
       index = binary =~ /^\.\.\.$/x or incomplete
-      [YAML.load(binary[0, index]), 4 + index]
+      yield YAML.load(binary[0, index])
+      4 + index
     end
   end
 end

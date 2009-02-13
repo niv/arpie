@@ -1,4 +1,5 @@
 require 'rubygems'
+$:.unshift(File.join(File.dirname(__FILE__), "../lib/"))
 require 'socket'
 require 'arpie'
 require 'benchmark'
@@ -8,20 +9,16 @@ include Arpie
 # Data test size.
 DATA_SIZE = 512
 
-rpc_call = RPCProtocol::Call.new('ns.', 'meth', [1, 2, 3, 4])
+rpc_call = RPCall.new('ns.', 'meth', [1, 2, 3, 4])
 $test_data = "a" * DATA_SIZE
 $test_data.freeze
 
 # Protocols to test:
-PROTOCOLS = {
-  MarshalProtocol => $test_data,
-  SizedProtocol => $test_data,
-  ShellwordsProtocol => $test_data,
-  SeparatorProtocol => $test_data,
-  YAMLProtocol => $test_data,
-#   XMLRPCProtocol => [rpc_call, :server],
-#  HTTPXMLRPCProtocol => [rpc_call, :client],
-}
+PROTOCOLS = [
+  [SizedProtocol.new],
+  [MarshalProtocol.new, SizedProtocol.new],
+  [YAMLProtocol.new]
+]
 
 ITERATIONS = 1000
 
@@ -30,14 +27,14 @@ $stderr.puts "Testing protocols with a data size of #{DATA_SIZE}, #{ITERATIONS} 
 
 Benchmark.bm {|b|
   r, w = IO.pipe
-  PROTOCOLS.each {|p, (d, a)|
+  PROTOCOLS.each {|p|
     a ||= []
-    proto = p.new(*a)
+    proto = ProtocolChain.new *p
     r, w = IO.pipe
 
-    b.report("%-30s" % p.to_s) {
+    b.report("%-30s\n" % p.map{|x| x.class.to_s}.inspect) {
       ITERATIONS.times do
-        proto.write_message(w, d)
+        proto.write_message(w, $test_data)
         proto.read_message(r)
       end
     }

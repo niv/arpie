@@ -7,6 +7,11 @@ describe "ProtocolChain", :shared => true do
     @chain = Arpie::ProtocolChain.new(*subject)
   end
 
+  it "should convert without io correctly" do
+    v = @chain.to "x"
+    @chain.from(v).should == ["x"]
+  end
+
   it "should read written binary data correctly" do
     @chain.write_message(@w, "x")
     @chain.read_message(@r).should == "x"

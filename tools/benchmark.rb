@@ -1,5 +1,6 @@
 require 'rubygems'
 require 'socket'
+$:.unshift(File.join(File.dirname(__FILE__), "../lib/"))
 require 'arpie'
 require 'benchmark'
 require 'drb'
