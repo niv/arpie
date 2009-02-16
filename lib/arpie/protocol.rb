@@ -3,8 +3,16 @@ require 'yaml'
 
 module Arpie
   MTU = 1024
+  # Raised by arpie when a Protocol thinks the stream got corrupted
+  # (by calling stream_error!).
+  # This usually results in a dropped connection.
   class StreamError < IOError ; end
+  # Raised by arpie when a Protocol needs more data to parse a packet.
+  # Usually only of relevance to the programmer when using Protocol#from directly.
   class EIncomplete < RuntimeError ; end
+
+  # :stopdoc:
+  # Used internally by arpie.
   class ESwallow < RuntimeError ; end
   class ETryAgain < RuntimeError ; end
   class YieldResult < RuntimeError
@@ -13,16 +21,14 @@ module Arpie
       @result = result
     end
   end
-  class ESkipAhead < RuntimeError
-    attr_reader :bytes
+  # :startdoc:
 
-    def initialize bytes
-      @bytes = bytes
-    end
-  end
-
+  # A RPC call. You need to wrap all calls sent over RPC protocols in this.
   class RPCall < Struct.new(:ns, :meth, :argv, :uuid); end
 
+  # A ProtocolChain wraps one or more Protocols to provide a parser
+  # list, into which io data can be fed and parsed packets received; and
+  # vice versa.
   class ProtocolChain
 
     # Array of Protocols.
@@ -220,6 +226,9 @@ module Arpie
       raise EIncomplete
     end
 
+    # Swallow the complete message currently passed to Protocol#from.
+    # Not advised for the outermost protocol, which works on io buffer streams
+    # and may swallow more than intended.
     def gulp!
       raise ESwallow
     end

@@ -6,6 +6,9 @@ your implementation details).
 
 Arpie also provides a robust replay-protected RPC framework.
 
+The useful core of arpie is a protocol stack that can be used to read/split/assemble/write
+any data stream, but is tailored for packeted streaming data.
+
 The Arpie server uses one ruby-thread per client, the client runs entirely in the
 calling thread; though an example implementation for evented callbacks is provided.
 
@@ -27,7 +30,7 @@ to get the newest version.
 
   server = TCPServer.new(51210)
 
-  e = Arpie::Server.new(Arpie::MarshalProtocol.new)
+  e = Arpie::Server.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
 
   e.handle do |server, ep, msg|
     ep.write_message msg.reverse
@@ -37,7 +40,7 @@ to get the newest version.
     server.accept
   end
 
-  c = Arpie::Client.new(Arpie::MarshalProtocol.new)
+  c = Arpie::Client.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
   c.connect do
     TCPSocket.new("127.0.0.1", 51210)
   end
@@ -60,7 +63,7 @@ to get the newest version.
 
   server = TCPServer.new(51210)
 
-  e = Arpie::ProxyServer.new(Arpie::MarshalProtocol.new)
+  e = Arpie::ProxyServer.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
 
   e.handle MyHandler.new
 
@@ -68,7 +71,7 @@ to get the newest version.
     server.accept
   end
 
-  p = Arpie::ProxyClient.new(Arpie::MarshalProtocol.new)
+  p = Arpie::ProxyClient.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
   p.connect do |transport|
     TCPSocket.new("127.0.0.1", 51210)
   end
