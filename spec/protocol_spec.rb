@@ -16,6 +16,7 @@ describe "ProtocolChain", :shared => true do
     @chain.write_message(@w, "x")
     @chain.read_message(@r).should == "x"
     @chain.buffer.size.should == 0
+    @chain.messages.size.should == 0
   end
 
   it "should read multiple written messages correctly" do
@@ -28,6 +29,33 @@ describe "ProtocolChain", :shared => true do
     end
 
     @chain.buffer.size.should == 0
+    @chain.messages.size.should == 0
+  end
+
+  it "should not clobber the buffer before the first read" do
+    @chain.write_message(@w, "hi")
+    @chain.buffer.size.should == 0
+    @chain.messages.size.should == 0
+  end
+
+  it "should parse a io-written buffer correctly" do
+    for i in 1...10 do
+      @chain.write_message(@w, "x#{i}")
+    end
+    @chain.from(@r.readpartial(4096)).should == %w{x1 x2 x3 x4 x5 x6 x7 x8 x9}
+  end
+
+  it "should read messages greater than MTU correctly" do
+    @chain.write_message(@w, message = ("M" * (Arpie::MTU + 10)))
+    @chain.read_message(@r).should == message
+  end
+
+  it "should not fail on interleaved io streams" do
+    r2, w2 = IO.pipe
+    @chain.write_message(@w, "1" * 2048)
+    @chain.write_message(w2, "2" * 2048)
+    @chain.read_message(@r).should == "1" * 2048
+    @chain.read_message(r2).should == "2" * 2048
   end
 end
 
