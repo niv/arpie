@@ -336,6 +336,8 @@ module Arpie
   # Note that all parameters are expected to be strings.
   class ShellwordsProtocol < Protocol
     def to object
+      raise ArgumentError, "#{self.class.to_s} can only encode arrays." unless
+        object.is_a?(Array)
       Shellwords.join(object.map {|x| x.to_s })
     end
 
