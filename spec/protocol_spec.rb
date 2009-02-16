@@ -1,21 +1,5 @@
 require File.join(File.dirname(__FILE__), 'spec_helper')
 
-describe "ProtocolChainSetup", :shared => true do
-  it_should_behave_like "IO Mockup"
-
-  before do
-    @chain = Arpie::ProtocolChain.new(* subject.map {|x| x.new })
-    @testdata_a = "xa"
-    @testdata_b = "xb"
-  end
-
-  # Make sure that no stray buffer contents remain.
-  after do
-    @chain.buffer.size.should == 0
-    @chain.messages.size.should == 0
-  end
-end
-
 describe "ProtocolChain", :shared => true do
   it_should_behave_like "ProtocolChainSetup"
 
@@ -85,6 +69,35 @@ describe "ObjectProtocolChain", :shared => true do
   end
 end
 
+describe "RPCProtocolChain", :shared => true do
+  it_should_behave_like "RPCProtocolChainSetup"
+
+  it "should send namespace-less RPC calls correctly encoded" do
+    call = Arpie::RPCall.new(nil, 'meth', [1, 2, 3])
+    @client.write_message(@w, call)
+    @w.close
+    @server.read_message(@r).should == call
+  end
+
+  it "should send namespaced RPC calls correctly encoded" do
+    call = Arpie::RPCall.new('ns', 'meth', [1, 2, 3])
+    @client.write_message(@w, call)
+    @w.close
+    @server.read_message(@r).should == call
+  end
+
+  it "should encode result values correctly" do
+    for r in inp = [1, 2.4, false, true, "string", {"1"=>"hash"}, [1,2,3]]
+      @server.write_message(@w, r)
+    end
+    @w.close
+
+    for r in inp
+      @client.read_message(@r).should == r
+    end
+  end
+end
+
 # Now, lets try some variations.
 
 describe "Sized" do subject { [Arpie::SizedProtocol] }
@@ -107,6 +120,33 @@ describe "Shellwords::Separator" do subject { [Arpie::ShellwordsProtocol, Arpie:
   end
 end
 
+describe "HTTPTest" do subject { [Arpie::HTTPClientTestProtocol] }
+  it_should_behave_like "ProtocolChain"
+end
+
+describe "HTTPTest" do subject { [Arpie::HTTPServerTestProtocol] }
+  it_should_behave_like "ProtocolChain"
+end
+
 describe "YAML" do subject { [Arpie::YAMLProtocol] }
   it_should_behave_like "ObjectProtocolChain"
 end
+
+describe "XMLRPC::Sized" do subject {
+    [
+      [Arpie::XMLRPCClientProtocol, Arpie::SizedProtocol],
+      [Arpie::XMLRPCServerProtocol, Arpie::SizedProtocol]
+    ]
+  }
+  it_should_behave_like "RPCProtocolChain"
+end
+
+describe "XMLRPC::HTTPTest" do subject {
+    [
+      [Arpie::XMLRPCClientProtocol, Arpie::HTTPClientTestProtocol],
+      [Arpie::XMLRPCServerProtocol, Arpie::HTTPServerTestProtocol]
+    ]
+  }
+  it_should_behave_like "RPCProtocolChain"
+end
+
