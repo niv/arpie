@@ -5,7 +5,14 @@ module Arpie
   MTU = 1024
   class StreamError < IOError ; end
   class EIncomplete < RuntimeError ; end
+  class ESwallow < RuntimeError ; end
   class ETryAgain < RuntimeError ; end
+  class YieldResult < RuntimeError
+    attr_reader :result
+    def initialize result
+      @result = result
+    end
+  end
   class ESkipAhead < RuntimeError
     attr_reader :bytes
 
@@ -23,6 +30,9 @@ module Arpie
 
     # String holding all read, but yet unparsed bytes.
     attr_reader :buffer
+
+    # A buffer holding all parsed, but unreturned messages.
+    attr_reader :messages
 
     # The endpoint class of this Protocol.
     # Defaults to Arpie::Endpoint
@@ -51,7 +61,7 @@ module Arpie
     # Convert the given +message+ to wire format by
     # passing it through all protocols in the chain.
     def to message
-      @chain.inject(message) {|msg, p|
+      ret = @chain.inject(message) {|msg, p|
         p.to(msg)
       }
     end
@@ -64,7 +74,15 @@ module Arpie
     # Returns an array of messages, even if only one message
     # was contained.
     def from binary
-      raise NotImplementedError
+      r, w = IO.pipe
+      w.write(binary)
+      w.close
+      results = []
+      results << read_message(r) until false rescue begin
+        r.close
+        return results
+      end
+      raise "Interal error: should not reach this."
     end
 
     # Read a message from +io+. Block until all protocols
@@ -75,37 +93,57 @@ module Arpie
       return @messages.shift if @messages.size > 0
 
       messages = [@buffer]
+      chain = @chain.reverse
+      p_index = 0
 
-      @chain.reverse.each_with_index {|p, p_index|
+      while p_index < chain.size do p = chain[p_index]
         cut_to_index = nil
         messages_for_next = []
 
-        # For each message the predecessing protocol gave us
         messages.each do |message|
           cut_to_index = p.from(message) do |object|
             messages_for_next << object
           end rescue case $!
 
-            when EIncomplete
-              raise $!, "#{$!.to_s}; only the first protocol in the chain can request more data." if
-                p_index != 0
+            when YieldResult
+              messages_for_next.concat($!.result)
+              next
 
-              select([io])
-              @buffer << io.readpartial(MTU) rescue raise $!.class,
-                "#{$!.to_s}; unparseable bytes remaining in buffer: #{@buffer.size}"
-              retry
+            when ESwallow
+              messages.delete(message)
+              messages_for_next = messages
+              p_index -= 1
+              break
+
+            when EIncomplete
+              # All protocols above the io one need to wait for each
+              # one above to yield more messages.
+              if p_index > 0
+                # Unwind to the parent protocol and let it read in some
+                # more messages ..
+                messages_for_next = messages
+                messages_for_next.shift
+                p_index -= 1
+                break
+
+              # The first protocol manages +io+.
+              else
+                select([io])
+                @buffer << io.readpartial(MTU) rescue raise $!.class,
+                  "#{$!.to_s}; unparseable bytes remaining in buffer: #{@buffer.size}"
+                retry
+              end
 
             when ETryAgain
               retry
 
             else
               raise
-
-          end # rescue
+          end # rescue case
         end # messages.each
 
-        raise "BUG: #{p.class.to_s}#from did not yield a message." if
-          messages_for_next.size == 0
+         raise "BUG: #{p.class.to_s}#from did not yield a message." if
+           messages_for_next.size == 0
 
         messages = messages_for_next
 
@@ -118,8 +156,8 @@ module Arpie
           end
         end
 
-        messages
-      }
+        p_index += 1
+      end # chain loop
 
       message = messages.shift
       @messages = messages
@@ -171,15 +209,62 @@ module Arpie
 
     # Call this within Protocol#from to reparse the current
     # message.
-    def again
+    def again!
       raise ETryAgain
     end
 
     # Tell the protocol chain that the given chunk of data
     # is not enough to construct a whole message.
     # This breaks out of Protocol#from.
-    def incomplete
+    def incomplete!
       raise EIncomplete
+    end
+
+    def gulp!
+      raise ESwallow
+    end
+    alias_method :swallow!, :gulp!
+
+    # Stow away a message in this protocols buffer for later reassembly.
+    # Optional argument: a token if you are planning to reassemble multiple
+    # interleaved/fragmented message streams.
+    #
+    # +binary+   is the binary packet you want to add to the assembly
+    # +token+    is a object which can be used to re-identify multiple concurrent assemblies
+    # +meta+     is a hash containing meta-information for this assembly
+    #            each call to assemble! will merge these hashes, and pass them
+    #            on to Protocol#assemble
+    def assemble! binary, token = :default, meta = {}
+      @stowbuffer ||= {}
+      @stowbuffer[token] ||= []
+      @stowbuffer[token] << binary
+
+      @metabuffer ||= {}
+      @metabuffer[token] ||= {}
+      @metabuffer[token].merge(meta)
+
+      assembled = []
+
+      assemble @stowbuffer[token], token, meta do |a|
+        assembled << a
+      end  # rescue case $!
+        #when EIncomplet
+        #  puts "Cant reassemble, asking for moarh"
+        #  raise EIncomplete
+        #else
+        #  raise
+      #end
+
+      assembled.size > 0 or raise "assemble! did not return any results."
+      raise YieldResult, assembled
+    end
+
+    # Called when we're trying to reassemble a stream of packets.
+    #
+    # Call incomplete! when not enough data is here to reassemble this stream,
+    # and yield all results of the reassembled stream.
+    def assemble binaries, token
+      raise NotImplementedError, "Tried to assemble! something, but no assembler defined."
     end
 
     # Call this if you think the stream has been corrupted, or
@@ -187,7 +272,7 @@ module Arpie
     # +message+ is the text to display.
     # +data+ is the optional misbehaving data for printing.
     # This breaks out of Protocol#from.
-    def bogon data = nil, message = nil
+    def bogon! data = nil, message = nil
       raise StreamError, "#{self.class.to_s}#{message.nil? ? " thinks the data is bogus" : ": " + message }#{data.nil? ? "" : ": " + data.inspect}."
     end
   end
@@ -199,8 +284,8 @@ module Arpie
     CAN_SEPARATE_MESSAGES = true
 
     def from binary
-      sz = binary.unpack('Q')[0] or incomplete
-      binary.size >= sz + 8 or incomplete
+      sz = binary.unpack('Q')[0] or incomplete!
+      binary.size >= sz + 8 or incomplete!
       yield binary[8, sz]
       8 + sz
     end
@@ -235,7 +320,7 @@ module Arpie
     end
 
     def from binary
-      idx = binary.index(@separator) or incomplete
+      idx = binary.index(@separator) or incomplete!
       yield binary[0, idx]
 
       @separator.size + idx
@@ -269,7 +354,7 @@ module Arpie
     end
 
     def from binary
-      index = binary =~ /^\.\.\.$/x or incomplete
+      index = binary =~ /^\.\.\.$/x or incomplete!
       yield YAML.load(binary[0, index])
       4 + index
     end
