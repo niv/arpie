@@ -29,7 +29,7 @@ module Arpie
       raise ArgumentError, "Can only encode Arpie::RPCall" unless
         object.is_a?(Arpie::RPCall)
 
-      @writer.methodCall((object.ns.nil? ? '' : object.ns + '.') + object.meth, *object.argv)
+      yield @writer.methodCall((object.ns.nil? ? '' : object.ns + '.') + object.meth, *object.argv)
     end
 
     def from binary
@@ -43,7 +43,7 @@ module Arpie
 
     def to object
       setup
-      case object
+      yield case object
         when Exception
           # TODO: wrap XMLFault
           raise NotImplementedError, "Cannot encode exceptions"
@@ -93,7 +93,7 @@ module Arpie
     public_class_method :new
 
     def to object
-      "GET / HTTP/1.[01]\r\nContent-Length: #{object.size}\r\n\r\n" + object
+      yield "GET / HTTP/1.[01]\r\nContent-Length: #{object.size}\r\n\r\n" + object
     end
  
   end
@@ -102,7 +102,7 @@ module Arpie
     public_class_method :new
 
     def to object
-      "HTTP/1.0 200 OK\r\nContent-Length: #{object.size}\r\n\r\n" + object
+      yield "HTTP/1.0 200 OK\r\nContent-Length: #{object.size}\r\n\r\n" + object
     end
   end
 end

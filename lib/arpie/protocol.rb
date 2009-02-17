@@ -66,9 +66,18 @@ module Arpie
     # Convert the given +message+ to wire format by
     # passing it through all protocols in the chain.
     def to message
-      ret = @chain.inject(message) {|msg, p|
-        p.to(msg)
+      messages = [message]
+      @chain.each {|p|
+        for_next = []
+        messages.each {|msg|
+          p.to(msg) do |a|
+            for_next << a
+          end
+        }
+
+        messages = for_next
       }
+      messages
     end
 
     # Convert the given +binary+ to message format
@@ -166,8 +175,9 @@ module Arpie
 
 
     # Write +message+ to +io+.
-    def write_message io, message
-      io.write(to message)
+    def write_message io, *messages
+      binary = messages.map {|m| to(m)}
+      io.write(binary)
     end
 
     def reset
@@ -192,7 +202,7 @@ module Arpie
 
     # Convert obj to on-the-wire format.
     def to obj
-      obj
+      yield obj
     end
 
     # Extract message(s) from +binary+.
@@ -232,12 +242,18 @@ module Arpie
     # Optional argument: a token if you are planning to reassemble multiple
     # interleaved/fragmented message streams.
     #
+    # If you pass a block, that block will be called; if no block is given,
+    # Protocol#assemble will be invoked.
+    #
+    # Any leftover binaries passed into assemble! that get not returned in
+    # the assembler will be discarded; they are assumed to be syntax or framework.
+    #
     # +binary+   is the binary packet you want to add to the assembly
-    # +token+    is a object which can be used to re-identify multiple concurrent assemblies
+    # +token+    is a object which can be used to identify multiple concurrent assemblies (think Hash.keys)
     # +meta+     is a hash containing meta-information for this assembly
     #            each call to assemble! will merge these hashes, and pass them
     #            on to Protocol#assemble
-    def assemble! binary, token = :default, meta = {}
+    def assemble! binary, token = :default, meta = {} # :yields: binaries, metadata
       @stowbuffer ||= {}
       @stowbuffer[token] ||= []
       @stowbuffer[token] << binary
@@ -246,26 +262,27 @@ module Arpie
       @metabuffer[token] ||= {}
       @metabuffer[token].merge!(meta)
 
-      assembled = []
+      assembled = nil
 
-      # This raises EIncomplete when not enough messages are there,
-      # and passes it straight on to #read_message
-      assemble @stowbuffer[token], token, @metabuffer[token] do |a|
-        assembled << a
+      if block_given?
+        assembled = yield(@stowbuffer[token], @metabuffer[token])
+
+      else
+        # This raises EIncomplete when not enough messages are there,
+        # and passes it straight on to #read_message
+        assembled = assemble(@stowbuffer[token], @metabuffer[token])
       end
-
-      assembled.size > 0 or raise "assemble! did not return any results."
 
       @stowbuffer.delete(token)
       @metabuffer.delete(token)
-      raise YieldResult, assembled
+      raise YieldResult, [assembled]
     end
 
     # Called when we're trying to reassemble a stream of packets.
     #
     # Call incomplete! when not enough data is here to reassemble this stream,
     # and yield all results of the reassembled stream.
-    def assemble binaries, token
+    def assemble binaries, meta
       raise NotImplementedError, "Tried to assemble! something, but no assembler defined."
     end
 
@@ -292,7 +309,7 @@ module Arpie
     end
 
     def to object
-      [object.size, object].pack('Qa*')
+      yield [object.size, object].pack('Qa*')
     end
   end
 
@@ -302,7 +319,7 @@ module Arpie
   # Messages are arbitary objects.
   class MarshalProtocol < Protocol
     def to object
-      Marshal.dump(object)
+      yield Marshal.dump(object)
     end
 
     def from binary
@@ -328,7 +345,7 @@ module Arpie
     end
 
     def to object
-      object.to_s + @separator
+      yield object.to_s + @separator
     end
   end
 
@@ -339,7 +356,7 @@ module Arpie
     def to object
       raise ArgumentError, "#{self.class.to_s} can only encode arrays." unless
         object.is_a?(Array)
-      Shellwords.join(object.map {|x| x.to_s })
+      yield Shellwords.join(object.map {|x| x.to_s })
     end
 
     def from binary
@@ -353,7 +370,7 @@ module Arpie
     CAN_SEPARATE_MESSAGES = true
 
     def to object
-      YAML.dump(object) + "...\n"
+      yield YAML.dump(object) + "...\n"
     end
 
     def from binary

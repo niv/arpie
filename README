@@ -79,6 +79,52 @@ to get the newest version.
   puts p.reverse "hi"
   # => "ih"
 
+== Writing custom Protocols
+
+You can use arpies Protocol layer to write your custom protocol parser/emitters.
+Consider the following, again very contrived, example. You have a linebased wire format,
+which sends regular object updates in multiple lines, each holding a property to be updated.
+What objects get updated is not relevant to this example.
+
+For this example, we'll be using the SeparatorProtocol already contained in protocols.rb as
+a base.
+
+  class AssembleExample < Arpie::Protocol
+
+    def from binary
+      # The wire format is simply a collection of lines
+      # where the first one is a number containing the
+      # # of lines to expect.
+      assemble! binary do |binaries, meta|
+        binaries.size >= 1 or incomplete!
+        binaries.size - 1 >= binaries[0].to_i or incomplete!
+
+        # Here, you can wrap all collected updates in
+        # whatever format you want it to be. We're just
+        # "joining" them to be a single array.
+        binaries.shift
+        binaries
+      end
+    end
+
+    def to object
+      yield object.size
+      object.each {|oo|
+        yield oo
+      }
+    end
+  end
+
+  p = Arpie::ProtocolChain.new(
+        AssembleExample.new,
+        Arpie::SeparatorProtocol.new
+      )
+  r, w = IO.pipe
+
+  p.write_message(w, %w{we want to be assembled})
+
+  p p.read_message(r)
+  # => ["we", "want", "to", "be", "assembled"]
 
 == Replay protection
 

@@ -26,17 +26,12 @@ end
 
 class Merger < Arpie::Protocol
   def from binary
-    unless @expect
-      @expect = binary or incomplete!
-      return
+    assemble! binary do |binaries, meta|
+      binaries.size >= 1 or incomplete!
+      binaries.size - 1 >= binaries[0].to_i or incomplete!
+      binaries.shift
+      binaries.join('')
     end
-
-    assemble! binary, :d, :size => @expect
-  end
-
-  def assemble binaries, token, meta
-    binaries.size >= meta[:size] or incomplete!
-    yield binaries.join('')
   end
 end
 
