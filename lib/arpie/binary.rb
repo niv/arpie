@@ -176,6 +176,10 @@ module Arpie
   end
 
   class BinaryType
+    def binary_size opts
+      nil
+    end
+
     def incomplete!
       raise EIncomplete
     end
@@ -197,7 +201,10 @@ module Arpie
 
   class PackBinaryType < BinaryType
     attr_reader :pack_string
-    attr_reader :binary_size
+
+    def binary_size opts
+      @binary_size
+    end
 
     def self.length_of format
       length = 0
@@ -271,11 +278,23 @@ module Arpie
       @force_opts = force_opts
     end
 
-    def from for_klass, binary, opts
-      opts = opts.merge(@force_opts)
+    def binary_size opts
+      opts = @force_opts.merge(opts || {})
       if opts[:sizeof]
         len_handler = Binary.get_field_handler(opts[:sizeof])
-        len, len_size = len_handler.from(for_klass, binary, nil)
+        len_handler.binary_size(opts[:sizeof_opts])
+      elsif opts[:length]
+      opts[:length]
+      else
+        nil
+      end
+    end
+
+    def from for_klass, binary, opts
+      opts = (opts || {}).merge(@force_opts)
+      if opts[:sizeof]
+        len_handler = Binary.get_field_handler(opts[:sizeof])
+        len, len_size = len_handler.from(for_klass, binary, {})
         binary.size >= len_size + len or incomplete!
 
         [binary.unpack("x#{len_size} a#{len}")[0], len_size + len]
@@ -297,7 +316,7 @@ module Arpie
     end
 
     def to for_object, object, opts
-      opts = opts.merge(@force_opts)
+      opts = (opts || {}).merge(@force_opts)
       if opts[:sizeof]
         len_handler = Binary.get_field_handler(opts[:sizeof])
         len_handler.respond_to?(:pack_string) or raise ArgumentError,
@@ -329,4 +348,80 @@ module Arpie
   Binary.register_field(BytesBinaryType.new("M"), :quoted_printable)
   Binary.register_field(BytesBinaryType.new("m"), :base64)
   Binary.register_field(BytesBinaryType.new("u"), :uuencoded)
+
+
+  class ListBinaryType < BinaryType
+
+    def binary_size opts
+      if opts[:sizeof]
+        len_handler = Binary.get_field_handler(opts[:sizeof])
+        len_handler.binary_size(opts[:sizeof_opts])
+      elsif opts[:length]
+        opts[:length]
+      else
+        nil
+      end
+    end
+
+    def from for_klass, binary, opts
+      type_of = Binary.get_field_handler(opts[:of])
+      type_of.respond_to?(:binary_size) &&
+        type_of_binary_size = type_of.binary_size(opts[:of_opts]) or raise ArgumentError,
+        "#{self.class} can only encode known-width fields."
+
+      list = []
+      consumed = 0
+
+      if opts[:sizeof]
+        len_handler = Binary.get_field_handler(opts[:sizeof])
+        len, ate = len_handler.from(for_klass, binary, opts[:sizeof_opts])
+        consumed += ate
+        for i in 0...len do
+          cc, ate = type_of.from(for_klass, binary[consumed, type_of_binary_size], opts[:of_opts])
+          list << cc
+          consumed += ate
+        end
+
+      elsif opts[:length]
+        for i in 0...opts[:length] do
+          cc, ate = type_of.from(for_klass, binary[consumed, type_of_binary_size], opts[:of_opts])
+          list << cc
+          consumed += ate
+        end
+      else
+        raise ArgumentError, "#{self.class}: Need one of [:sizeof, :length]"
+      end
+
+      [list, consumed]
+    end
+
+    def to for_object, object, opts
+      object.is_a?(Array) or raise ArgumentError, "#{self.class}#to: require Array."
+
+      type_of = Binary.get_field_handler(opts[:of])
+
+      if opts[:sizeof]
+        len_handler = Binary.get_field_handler(opts[:sizeof])
+
+        ([len_handler.to(for_object, object.size, opts[:of_opts])] + object).map {|o|
+          type_of.to(for_object, o, opts[:of_opts])
+        }.join('')
+
+      elsif opts[:length]
+        object.size == opts[:length] or raise ArgumentError,
+          "#{self.class}#to: Array#size does not match required fixed width: " +
+          "have #{object.size}, require #{opts[:length]}"
+
+        object.map {|o|
+          type_of.to(for_object, o, opts[:of_opts])
+        }.join('')
+
+      else
+        raise ArgumentError, "#{self.class}: Need one of [:sizeof, :length]"
+      end
+
+    end
+  end
+
+  Binary.register_field(ListBinaryType.new, :list)
 end
