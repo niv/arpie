@@ -22,15 +22,26 @@ module Arpie
   # file of this class at the bottom.
   #
   # Writing new types is easy enough, (see BinaryType).
+  #
+  # On confusing names:
+  #
+  # Arpie uses the term +binary+ to refer to on-the-wire data bit/byte binary format.
+  # A +Binary+ (uppercase) is a object describing the format. If you're reading +binary+,
+  # think "raw data"; if you're reading +Binary+ or +object+, think Arpie::Binary.
+  #
+  # Another warning:
+  #
+  # Do not use +Kernel+ methods as field names. It'll confuse method_missing.
+  # Example:
+  #  field :test, :uint8
+  # => in `test': wrong number of arguments (ArgumentError)
   class Binary
     @@fields ||= {}
     @@attributes ||= {}
     @@description ||= {}
 
-    attr_reader :consumed_bytes # :nodoc:
-
-    def initialize attributes = {}, consumed_bytes = nil
-      @attributes, @consumed_bytes, = attributes, consumed_bytes
+    def initialize attributes = {}
+      @attributes = attributes
       if block_given?
         yield self
       end
@@ -70,7 +81,12 @@ module Arpie
 
     # Returns the BinaryType handler class for type +klass+.
     def self.get_field_handler klass
-      @@fields[klass] or raise ArgumentError, "#{self}: No such field type: #{klass.inspect}"
+      if klass.class === Arpie::Binary
+        klass
+      else
+        @@fields[klass] or raise ArgumentError,
+          "#{self}: No such field type: #{klass.inspect}"
+      end
     end
 
     # You can use this to provide a short description of this Binary.
@@ -82,9 +98,15 @@ module Arpie
     # Specify that this Binary has a field of type +klass+.
     # See the class documentation for usage.
     def self.field name, klass = nil, opts = {}
+      @@attributes[self] ||= []
+
       klass.nil? && !block_given? and raise ArgumentError,
         "You need to specify an inline handler if no type is given."
       inline_handler = nil
+
+      @@attributes[self].select {|x|
+        x[0].to_sym == name.to_sym
+      }.size > 0 and raise ArgumentError, "#{self}: attribute #{name.inspect} already defined"
 
       if block_given?
         yield inline_handler = Class.new(Arpie::Binary)
@@ -100,78 +122,74 @@ module Arpie
           "#{self}: #{name.inspect} as type #{klass.inspect} requires options: #{handler.required_opts.inspect}"
       end
 
-      @@attributes[self] ||= []
       @@attributes[self] << [name.to_sym, klass, opts, inline_handler]
+    end
+
+
+    def self.binary_size opts = {}
+      @@attributes[self] ||= []
+      total = @@attributes[self].inject(0) {|sum, attribute|
+        klass = get_field_handler attribute[1]
+        sum += klass.binary_size(opts)
+      }
+
+      puts "total for #{self}: #{total}"
+      total
     end
 
     # Parse the given +binary+, which is a string, and return an instance of this class.
     # Will raise Arpie::EIncomplete when not enough data is available in +binary+ to construct
     # a complete Binary.
-    def self.from binary
+    def self.from binary, opts = {}
       @@attributes[self] ||= []
       at = {}
 
       consumed_bytes = 0
       @@attributes[self].each {|name, klass, opts, inline_handler|
 
-        if klass.is_a?(Symbol)
-          handler = get_field_handler klass
+        handler = get_field_handler klass
+        at[name], consumed =
+          handler.from(binary[consumed_bytes .. -1], opts) rescue case $!
+          when EIncomplete
+            raise $!, "#{$!.to_s}, #{self}#from needs more data for #{name.inspect}"
+          else
+            raise
+        end
+        consumed_bytes += consumed
 
-          at[name], consumed =
-            handler.from(self, binary[consumed_bytes .. -1], opts) rescue case $!
-              when EIncomplete
-                raise $!, "#{$!.to_s}, #{self}#from needs more data for #{name.inspect}"
-              else
-                raise
-            end
-
-            if inline_handler
-              at[name] = inline_handler.from(at[name])
-            end
-
-          consumed_bytes += consumed
-
-        elsif klass.is_a?(Class) # Arpie::Binary
-          at[name] = klass.from(binary[consumed_bytes .. -1])
-          consumed_bytes += at[name].consumed_bytes
-
-        else
-          raise ArgumentError, "Unknown field-type #{klass.inspect}"
-
+        if inline_handler
+           at[name], __nil = inline_handler.from(at[name])
         end
       }
-      new at, consumed_bytes
+
+      [new(at), consumed_bytes]
     end
 
-    # Recursively convert this Binary to wire format.
-    def to
+    # Recursively convert the given Binary object to wire format.
+    def self.to object, opts = {}
+      @@attributes[self] ||= []
       r = []
-      @@attributes[self.class].each {|name, klass, opts, inline_handler|
-        handler = self.class.get_field_handler klass
 
-        if klass.is_a?(Symbol)
-          val = self.respond_to?(name) ?
-            self.send(name) :
-            val = @attributes[name] or raise "#{self.class}: attribute #{name.inspect} is nil, cannot #to"
+      @@attributes[self].each {|name, klass, opts, inline_handler|
 
-          if inline_handler
-            val = val.to
-          end
+        handler = get_field_handler klass
+        val = object.send(name) or raise "#{self.class}: attribute #{name.inspect} is nil, cannot #to"
 
-          r << handler.to(self, val, opts)
-
-        elsif klass.is_a?(Class)
-          r << klass.to
-
-        else
-          raise ArgumentError, "Unknown field-type #{klass.inspect}"
-
+        if inline_handler
+          p val
+          val = val.to
         end
+
+        r << handler.to(val, opts)
       }
 
       r = r.join('')
-      self.respond_to?(:post_to) && r = self.send(:post_to, r)
+      object.respond_to?(:post_to) && r = object.send(:post_to, r)
       r
+    end
+
+    def to opts = {}
+      self.class.to(self, opts)
     end
   end
 
@@ -189,12 +207,12 @@ module Arpie
     end
 
     # Return [object, len]
-    def from for_klass, binary, opts
+    def from binary, opts
       raise NotImplementedError
     end
 
     # Return [binary]
-    def to for_object, object, opts
+    def to object, opts
       raise NotImplementedError
     end
   end
@@ -234,14 +252,15 @@ module Arpie
       @binary_size = self.class.length_of(pack_string)
     end
 
-    def from for_klass, binary, opts
+    def from binary, opts
       binary.size >= @binary_size or incomplete!
       [binary.unpack(@pack_string)[0], @binary_size]
     end
 
-    def to for_object, object, opts
+    def to object, opts
       [object].pack(@pack_string)
     end
+
   end
 
   Binary.register_field(PackBinaryType.new('c'), :uint8)
@@ -290,14 +309,14 @@ module Arpie
       end
     end
 
-    def from for_klass, binary, opts
+    def from binary, opts
       opts = (opts || {}).merge(@force_opts)
       if opts[:sizeof]
         len_handler = Binary.get_field_handler(opts[:sizeof])
-        len, len_size = len_handler.from(for_klass, binary, {})
+        len, len_size = len_handler.from(binary, {})
         binary.size >= len_size + len or incomplete!
 
-        [binary.unpack("x#{len_size} a#{len}")[0], len_size + len]
+        [binary.unpack("x#{len_size} #{@pack_string}#{len}")[0], len_size + len]
 
       elsif opts[:length]
         len = case opts[:length]
@@ -307,7 +326,7 @@ module Arpie
             opts[:length]
           end
         binary.size >= len or incomplete!
-        [binary.unpack("a#{len}")[0], len]
+        [binary.unpack("#{@pack_string}#{len}")[0], len]
 
       else
         raise ArgumentError, "#{self.class}: Need one of [:sizeof, :length]"
@@ -315,14 +334,14 @@ module Arpie
 
     end
 
-    def to for_object, object, opts
+    def to object, opts
       opts = (opts || {}).merge(@force_opts)
       if opts[:sizeof]
         len_handler = Binary.get_field_handler(opts[:sizeof])
         len_handler.respond_to?(:pack_string) or raise ArgumentError,
           "#{self.class}#to: needs a PackStringType parameter for length"
 
-        [object.size, object].pack("#{len_handler.pack_string} a*")
+        [object.size, object].pack("#{len_handler.pack_string} #{@pack_string}*")
 
       elsif opts[:length]
         len = case opts[:length]
@@ -331,7 +350,7 @@ module Arpie
           else
             opts[:length]
         end
-        [object].pack("a#{len}")
+        [object].pack("#{@pack_string}#{len}")
 
       else
         raise ArgumentError, "#{self.class}: Need one of [:sizeof, :length]"
@@ -363,7 +382,7 @@ module Arpie
       end
     end
 
-    def from for_klass, binary, opts
+    def from binary, opts
       type_of = Binary.get_field_handler(opts[:of])
       type_of.respond_to?(:binary_size) &&
         type_of_binary_size = type_of.binary_size(opts[:of_opts]) or raise ArgumentError,
@@ -374,17 +393,19 @@ module Arpie
 
       if opts[:sizeof]
         len_handler = Binary.get_field_handler(opts[:sizeof])
-        len, ate = len_handler.from(for_klass, binary, opts[:sizeof_opts])
+        len, ate = len_handler.from(binary, opts[:sizeof_opts])
         consumed += ate
+        cc, ate = nil, nil
         for i in 0...len do
-          cc, ate = type_of.from(for_klass, binary[consumed, type_of_binary_size], opts[:of_opts])
+          cc, ate = type_of.from(binary[consumed .. -1], opts[:of_opts])
           list << cc
           consumed += ate
         end
 
       elsif opts[:length]
+        cc, ate = nil, nil
         for i in 0...opts[:length] do
-          cc, ate = type_of.from(for_klass, binary[consumed, type_of_binary_size], opts[:of_opts])
+          cc, ate = type_of.from(binary[consumed .. -1], opts[:of_opts])
           list << cc
           consumed += ate
         end
@@ -395,17 +416,16 @@ module Arpie
       [list, consumed]
     end
 
-    def to for_object, object, opts
+    def to object, opts
       object.is_a?(Array) or raise ArgumentError, "#{self.class}#to: require Array."
 
       type_of = Binary.get_field_handler(opts[:of])
 
       if opts[:sizeof]
         len_handler = Binary.get_field_handler(opts[:sizeof])
-
-        ([len_handler.to(for_object, object.size, opts[:of_opts])] + object).map {|o|
-          type_of.to(for_object, o, opts[:of_opts])
-        }.join('')
+        ([len_handler.to(object.size, opts[:sizeof_opts])] + object.map {|o|
+          type_of.to(o, opts[:of_opts])
+        }).join('')
 
       elsif opts[:length]
         object.size == opts[:length] or raise ArgumentError,
@@ -413,7 +433,7 @@ module Arpie
           "have #{object.size}, require #{opts[:length]}"
 
         object.map {|o|
-          type_of.to(for_object, o, opts[:of_opts])
+          type_of.to(o, opts[:of_opts])
         }.join('')
 
       else
