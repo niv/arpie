@@ -151,8 +151,11 @@ module Arpie
             raise
         end
 
-        raise "BUG: #{p.class.to_s}#from did not yield a message." if
-          messages_for_next.size == 0
+        if messages_for_next.size == 0
+          # Get back to IO level and retry reading more crud
+          messages_for_next = [@buffer]
+          p_index = -1
+        end
 
         messages = messages_for_next
 
