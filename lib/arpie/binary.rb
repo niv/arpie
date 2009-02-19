@@ -84,7 +84,7 @@ module Arpie
     def self.call_virtual(on_object, name)
       @@virtuals[on_object.class].select {|x|
         x[0] == name
-      }[0][2].call(on_object)
+      }[0][3].call(on_object)
     end
 
     # This registers a new field with this binary.
@@ -130,8 +130,52 @@ module Arpie
 
     # You can use this to provide a short description of this Binary.
     # It will be shown when calling Binary.inspect.
-    def self.describe text
-      @@description[self] = text
+    # When called without a parameter, (non-recursively) print out a
+    # pretty description of this data type as it would appear on the wire.
+    def self.describe text = nil
+      unless text.nil?
+        @@description[self] = text
+      else
+        ret = []
+        ret << "%-10s %s" % ["Binary:", @@description[self]]
+        ret << ""
+
+        sprf    = "%-10s %-25s %-15s %-15s %-15s %s"
+        sprf_of = "%68s %s"
+        if @@virtuals[self] && @@virtuals[self].size > 0
+          ret << sprf % ["Virtuals:", "NAME", "TYPE", "WIDTH", "", "DESCRIPTION"]
+          @@virtuals[self].each {|v|
+            name, klass, opts, handler = *v
+            width = self.get_field_handler(klass).binary_size({})
+            ret << sprf % [ "",
+              name,
+              klass,
+              width,
+              "",
+              opts[:description]
+            ]
+          }
+          ret << ""
+        end
+        if @@attributes[self] && @@attributes[self].size > 0
+          ret << sprf % %w{Fields:   NAME TYPE WIDTH OF DESCRIPTION}
+          @@attributes[self].each {|a|
+            name, klass, opts, inline_handler = *a
+            width = self.get_field_handler(klass).binary_size(opts)
+            ret << sprf % [ "",
+              name,
+              klass,
+              (opts[:length] || opts[:sizeof] || width),
+              opts[:of] ? opts[:of].inspect : "",
+              opts[:description]
+            ]
+            ret << sprf_of % [ "",
+              opts[:of_opts].inspect
+            ] if opts[:of_opts]
+          }
+        end
+        ret.join("\n")
+      end
     end
 
     # Specify that this Binary has a field of type +klass+.
@@ -160,29 +204,33 @@ module Arpie
           "#{self}: #{name.inspect} as type #{klass.inspect} requires options: #{handler.required_opts.inspect}"
       end
 
+      opts[:description] ||= opts[:desc]
+      opts.delete(:desc)
+
       @@attributes[self] << [name.to_sym, klass, opts, inline_handler]
     end
 
     # Set up a new virtual field
-    def self.virtual name, klass, &handler
+    def self.virtual name, klass, opts = {}, &handler
       raise ArgumentError, "You need to pass a block with virtuals" unless block_given?
       raise ArgumentError, "#{name.inspect} already exists as a virtual" if virtual?(name)
       raise ArgumentError, "#{name.inspect} already exists as a field" if attribute?(name)
 
       @@virtuals[self] ||= []
-
-      @@virtuals[self] << [name.to_sym, klass, handler]
+      opts[:description] ||= opts[:desc]
+      opts.delete(:desc)
+      @@virtuals[self] << [name.to_sym, klass, opts, handler]
     end
 
 
     def self.binary_size opts = {}
       @@attributes[self] ||= []
       total = @@attributes[self].inject(0) {|sum, attribute|
-        klass = get_field_handler attribute[1]
-        sum += klass.binary_size(opts)
+        name, klass, kopts, handler = *attribute
+        klass = get_field_handler klass
+        sum += klass.binary_size(kopts)
       }
 
-      puts "total for #{self}: #{total}"
       total
     end
 
@@ -220,7 +268,7 @@ module Arpie
         attrib, consumed =
           handler.from(binary[consumed_bytes .. -1], kopts) rescue case $!
           when EIncomplete
-            raise $!, "#{$!.to_s}, #{self}#from needs more data for #{name.inspect}"
+            raise $!, "#{$!.to_s}, #{self}#from needs more data for #{name.inspect}. (data: #{binary[consumed_bytes .. -1].inspect})"
           else
             raise
         end
@@ -484,7 +532,7 @@ module Arpie
       elsif opts[:length]
         case opts[:length]
           when Symbol
-            opts[:object].send(opts[:length])
+            opts[:object] ? opts[:object].send(opts[:length]) : nil
           else
             opts[:length]
         end
