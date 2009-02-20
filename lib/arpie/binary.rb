@@ -36,7 +36,7 @@ module Arpie
   #  field :test, :uint8
   # => in `test': wrong number of arguments (ArgumentError)
   class Binary
-    include Arpie
+    extend Arpie
 
     @@fields ||= {}
     @@attributes ||= {}
@@ -276,6 +276,8 @@ module Arpie
           handler.from(binary[consumed_bytes .. -1], kopts) rescue case $!
           when EIncomplete
             raise $!, "#{$!.to_s}, #{self}#from needs more data for #{name.inspect}. (data: #{binary[consumed_bytes .. -1].inspect})"
+          when StreamError
+            bogon! binary[consumed_bytes .. -1], "#{self}#from: #{name.inspect}: #{$!.to_s}"
           else
             raise
         end
@@ -305,7 +307,12 @@ module Arpie
           val = val.to
         end
 
-        r << handler.to(val, kopts)
+        r << handler.to(val, kopts) rescue case $!
+          when StreamError
+            raise $!, "#{self}#from: #{name.inspect}: #{$!.to_s}"
+          else
+            raise
+        end
         kopts.delete(:object)
       }
 
@@ -397,7 +404,7 @@ module Arpie
         when 'n', 'S', 's', 'v' : count * 2
         when 'Q', 'q' : count * 8
         when 'X' : count * -1
-        else raise ArgumentError, "#{self}: #{directive} is not supported"
+        else raise ArgumentError, "#{directive} is not supported"
         end
       end
 
@@ -415,7 +422,8 @@ module Arpie
     end
 
     def to object, opts
-      object.nil? and bogon! nil,"#{self.class}#to: nil object given."
+      opts ||= {}
+      object.nil? and bogon! nil,"nil object given"
       [object].pack(@pack_string)
     end
 
@@ -487,7 +495,7 @@ module Arpie
         [binary.unpack("#{@pack_string}#{len}")[0], len]
 
       else
-        raise ArgumentError, "#{self.class}: Need one of [:sizeof, :length]"
+        raise ArgumentError, "need one of [:sizeof, :length]"
       end
 
     end
@@ -513,7 +521,7 @@ module Arpie
         [object].pack("#{@pack_string}#{len}")
 
       else
-        raise ArgumentError, "#{self.class}: Need one of [:sizeof, :length]"
+        raise ArgumentError, "need one of [:sizeof, :length]"
       end
 
     end
@@ -551,7 +559,7 @@ module Arpie
       type_of = Binary.get_field_handler(opts[:of])
       type_of.respond_to?(:binary_size) &&
         type_of_binary_size = type_of.binary_size(opts[:of_opts]) or raise ArgumentError,
-        "#{self.class} can only encode known-width fields."
+        "can only encode known-width fields"
 
       list = []
       consumed = 0
@@ -572,7 +580,7 @@ module Arpie
             opts[:length]
           end
       else
-        raise ArgumentError, "#{self.class}: Need one of [:sizeof, :length]"
+        raise ArgumentError, "need one of [:sizeof, :length]"
       end
 
       cc, ate = nil, nil
@@ -586,7 +594,7 @@ module Arpie
     end
 
     def to object, opts
-      object.is_a?(Array) or bogon! object, "#{self.class}#to: require Array."
+      object.is_a?(Array) or bogon! object, "require Array"
 
       type_of = Binary.get_field_handler(opts[:of])
 
@@ -605,7 +613,7 @@ module Arpie
         end
 
         object.size == length or bogon! object,
-          "#{self.class}#to: Array#size does not match required fixed width: " +
+          "Array#size does not match required fixed width: " +
           "have #{object.size}, require #{length.inspect}"
 
         object.map {|o|
@@ -613,7 +621,7 @@ module Arpie
         }.join('')
 
       else
-        raise ArgumentError, "#{self.class}: Need one of [:sizeof, :length]"
+        raise ArgumentError, "need one of [:sizeof, :length]"
       end
 
     end

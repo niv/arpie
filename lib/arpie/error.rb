@@ -25,13 +25,15 @@ module Arpie
   # +data+ is the optional misbehaving data for printing.
   # This breaks out of the caller.
   def bogon! data = nil, message = nil
-    raise StreamError, "#{self.to_s}#{message.nil? ? " thinks the data is bogus" : ": " + message }#{data.nil? ? "" : ": " + data.inspect}."
+    raise StreamError, "#{self.is_a?(Class) ? self.to_s : self.class.to_s}:" +
+      " BOGON#{data.nil? ? "" : " " + data.inspect}" +
+      "#{message.nil? ? "" : " -- #{message}" }"
   end
 
   # Tell the caller that the given chunk of data
   # is not enough to construct a whole message.
   # This breaks out of the caller.
   def incomplete!
-    raise EIncomplete, "#{self} needs more data."
+    raise EIncomplete, "#{self.is_a?(Class) ? self : self.class} needs more data"
   end
 end
