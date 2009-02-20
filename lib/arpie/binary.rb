@@ -200,10 +200,15 @@ module Arpie
         klass, inline_handler = inline_handler, nil
       end
 
-      if klass.is_a?(BinaryType)
-        handler = get_field_handler klass
-        (opts.keys & handler.required_opts) == handler.required_opts or raise ArgumentError,
-          "#{self}: #{name.inspect} as type #{klass.inspect} requires options: #{handler.required_opts.inspect}"
+      handler = get_field_handler klass
+      if handler.respond_to?(:required_opts)
+        missing_required = handler.required_opts.keys - opts.keys
+        raise ArgumentError, "#{self}: #{name.inspect} as type #{klass.inspect} " +
+          "requires options: #{missing_required.inspect}" if missing_required.size > 0
+        handler.required_opts.each {|k,v|
+          v.nil? and next
+          v.call(opts[k]) or raise ArgumentError, "#{self}: Invalid value given for opt key #{k.inspect}."
+        }
       end
 
       opts[:description] ||= opts[:desc]
@@ -294,7 +299,7 @@ module Arpie
       @@attributes[self].each {|name, klass, kopts, inline_handler|
         kopts[:object] = object
         handler = get_field_handler klass
-        val = object.send(name) or raise "#{self.class}: attribute #{name.inspect} is nil, cannot #to"
+        val = object.send(name)
 
         if inline_handler
           val = val.to
@@ -355,7 +360,7 @@ module Arpie
     end
 
     def required_opts
-      []
+      {}
     end
 
     # Return [object, len]
@@ -410,6 +415,7 @@ module Arpie
     end
 
     def to object, opts
+      object.nil? and bogon! nil,"#{self.class}#to: nil object given."
       [object].pack(@pack_string)
     end
 
@@ -558,6 +564,8 @@ module Arpie
 
       elsif opts[:length]
         length = case opts[:length]
+          when :all
+            binary.size / type_of_binary_size
           when Symbol
             opts[:object].send(opts[:length])
           else
@@ -578,7 +586,7 @@ module Arpie
     end
 
     def to object, opts
-      object.is_a?(Array) or raise ArgumentError, "#{self.class}#to: require Array."
+      object.is_a?(Array) or bogon! object, "#{self.class}#to: require Array."
 
       type_of = Binary.get_field_handler(opts[:of])
 
@@ -596,7 +604,7 @@ module Arpie
             opts[:length]
         end
 
-        object.size == length or raise ArgumentError,
+        object.size == length or bogon! object,
           "#{self.class}#to: Array#size does not match required fixed width: " +
           "have #{object.size}, require #{length.inspect}"
 
@@ -610,6 +618,5 @@ module Arpie
 
     end
   end
-
   Binary.register_field(ListBinaryType.new, :list)
 end
