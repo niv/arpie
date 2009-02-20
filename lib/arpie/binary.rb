@@ -379,6 +379,18 @@ module Arpie
     def to object, opts
       raise NotImplementedError
     end
+
+    def check_limit value, limit
+      case limit
+        when nil
+          true
+        when Range, Array
+          limit.include?(value)
+        else
+          raise ArgumentError, "unknown limit definition: #{limit.inspect}"
+      end or bogon! nil, "not in :limit => #{limit.inspect}"
+    end
+
   end
 
   class PackBinaryType < BinaryType
@@ -417,8 +429,12 @@ module Arpie
     end
 
     def from binary, opts
+      opts ||= {}
       binary.size >= @binary_size or incomplete!
-      [binary.unpack(@pack_string)[0], @binary_size]
+      value = binary.unpack(@pack_string)[0]
+      check_limit value, opts[:limit]
+
+      [value, @binary_size]
     end
 
     def to object, opts
