@@ -47,6 +47,16 @@ module Arpie
     @@description ||= {}
     @@hooks ||= {}
 
+    #:stopdoc:
+    @@anonymous ||= {}
+    def self.__anonymous
+      @@anonymous[self]
+    end
+    def self.__anonymous= x
+      @@anonymous[self] = x
+    end
+    #:startdoc:
+
     def initialize attributes = {}
       @attributes = attributes
       if block_given?
@@ -56,7 +66,12 @@ module Arpie
 
     def inspect #:nodoc:
       desc = " " + @@description[self.class].inspect if @@description[self.class]
-      "#<#{self.class.to_s}#{desc} #{@attributes.inspect}>"
+      # Anonymous is special
+      klass = self.class.respond_to?(:__anonymous) && self.class.__anonymous ?
+        "Anon#{self.class.__anonymous.inspect}" :
+        self.class.to_s
+
+      "#<#{klass}#{desc} #{@attributes.inspect}>"
     end
 
     def method_missing m, *a
@@ -198,6 +213,7 @@ module Arpie
 
       if block_given?
         inline_handler = Class.new(Arpie::Binary)
+        inline_handler.__anonymous = [name, klass, opts]
         inline_handler.instance_eval(&block)
       end
 
@@ -216,7 +232,7 @@ module Arpie
         }
       end
 
-      opts[:description] ||= opts[:desc]
+      opts[:description] ||= opts[:desc] if opts[:desc]
       opts.delete(:desc)
 
       @@attributes[self] << [name.to_sym, klass, opts, inline_handler]
