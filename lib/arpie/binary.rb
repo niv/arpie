@@ -36,6 +36,8 @@ module Arpie
   #  field :test, :uint8
   # => in `test': wrong number of arguments (ArgumentError)
   class Binary
+    include Arpie
+
     @@fields ||= {}
     @@attributes ||= {}
     @@virtuals ||= {}
@@ -346,12 +348,10 @@ module Arpie
   end
 
   class BinaryType
+    include Arpie
+
     def binary_size opts
       nil
-    end
-
-    def incomplete!
-      raise EIncomplete
     end
 
     def required_opts

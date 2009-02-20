@@ -1,3 +1,4 @@
+require 'arpie/error'
 require 'arpie/protocol'
 require 'arpie/binary'
 require 'arpie/xmlrpc'

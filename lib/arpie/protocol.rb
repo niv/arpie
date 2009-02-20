@@ -3,25 +3,6 @@ require 'yaml'
 
 module Arpie
   MTU = 1024
-  # Raised by arpie when a Protocol thinks the stream got corrupted
-  # (by calling bogon!).
-  # This usually results in a dropped connection.
-  class StreamError < IOError ; end
-  # Raised by arpie when a Protocol needs more data to parse a packet.
-  # Usually only of relevance to the programmer when using Protocol#from directly.
-  class EIncomplete < RuntimeError ; end
-
-  # :stopdoc:
-  # Used internally by arpie.
-  class ETryAgain < RuntimeError ; end
-  class YieldResult < RuntimeError
-    attr_reader :result
-    def initialize result
-      @result = result
-    end
-  end
-  # :startdoc:
-
   # A RPC call. You need to wrap all calls sent over RPC protocols in this.
   class RPCall < Struct.new(:ns, :meth, :argv, :uuid); end
 
@@ -29,6 +10,7 @@ module Arpie
   # list, into which io data can be fed and parsed packets received; and
   # vice versa.
   class ProtocolChain
+    include Arpie
 
     # Array of Protocols.
     attr_reader :chain
@@ -191,6 +173,7 @@ module Arpie
   # A Protocol converts messages (which are arbitary objects)
   # to a suitable on-the-wire format, and back.
   class Protocol
+    include Arpie
 
     # Set this to true in child classes which implement
     # message separation within a stream.
@@ -232,13 +215,6 @@ module Arpie
     # message.
     def again!
       raise ETryAgain
-    end
-
-    # Tell the protocol chain that the given chunk of data
-    # is not enough to construct a whole message.
-    # This breaks out of Protocol#from.
-    def incomplete!
-      raise EIncomplete, "#{self} needs more data."
     end
 
     # Stow away a message in this protocols buffer for later reassembly.
@@ -287,15 +263,6 @@ module Arpie
     # and yield all results of the reassembled stream.
     def assemble binaries, meta
       raise NotImplementedError, "Tried to assemble! something, but no assembler defined."
-    end
-
-    # Call this if you think the stream has been corrupted, or
-    # non-protocol data arrived.
-    # +message+ is the text to display.
-    # +data+ is the optional misbehaving data for printing.
-    # This breaks out of Protocol#from.
-    def bogon! data = nil, message = nil
-      raise StreamError, "#{self.class.to_s}#{message.nil? ? " thinks the data is bogus" : ": " + message }#{data.nil? ? "" : ": " + data.inspect}."
     end
   end
 
