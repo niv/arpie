@@ -185,7 +185,7 @@ module Arpie
 
     # Specify that this Binary has a field of type +klass+.
     # See the class documentation for usage.
-    def self.field name, klass = nil, opts = {}
+    def self.field name, klass = nil, opts = {}, &block
       raise ArgumentError, "#{name.inspect} already exists as a virtual" if virtual?(name)
       raise ArgumentError, "#{name.inspect} already exists as a field" if attribute?(name)
       raise ArgumentError, "#{name.inspect} already exists as a instance method" if instance_methods.index(name.to_s)
@@ -197,7 +197,8 @@ module Arpie
       inline_handler = nil
 
       if block_given?
-        yield inline_handler = Class.new(Arpie::Binary)
+        inline_handler = Class.new(Arpie::Binary)
+        inline_handler.instance_eval(&block)
       end
 
       if klass.nil?
