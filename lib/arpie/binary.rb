@@ -619,4 +619,24 @@ module Arpie
     end
   end
   Binary.register_field(ListBinaryType.new, :list)
+
+  class FixedBinaryType < BinaryType
+    def required_opts ; {:value => proc {|v| v.is_a?(String)}} end
+    def binary_size opts
+      opts[:value].size
+    end
+
+    def from binary, opts
+      sz = opts[:value].size
+      existing = binary.unpack("a#{sz}")[0]
+      existing == opts[:value] or bogon! nil, ":fixed did not match data in packet"
+
+      [opts[:value], opts[:value].size]
+    end
+
+    def to object, opts
+      opts[:value]
+    end
+  end
+  Binary.register_field(FixedBinaryType.new, :fixed)
 end
