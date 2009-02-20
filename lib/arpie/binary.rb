@@ -35,6 +35,9 @@ module Arpie
   # Example:
   #  field :test, :uint8
   # => in `test': wrong number of arguments (ArgumentError)
+  #
+  # In fact, this is the reason while Binary will not let you define fields with
+  # with names like existing instance methods.
   class Binary
     extend Arpie
 
@@ -185,6 +188,7 @@ module Arpie
     def self.field name, klass = nil, opts = {}
       raise ArgumentError, "#{name.inspect} already exists as a virtual" if virtual?(name)
       raise ArgumentError, "#{name.inspect} already exists as a field" if attribute?(name)
+      raise ArgumentError, "#{name.inspect} already exists as a instance method" if instance_methods.index(name.to_s)
 
       @@attributes[self] ||= []
 
@@ -222,6 +226,7 @@ module Arpie
       raise ArgumentError, "You need to pass a block with virtuals" unless block_given?
       raise ArgumentError, "#{name.inspect} already exists as a virtual" if virtual?(name)
       raise ArgumentError, "#{name.inspect} already exists as a field" if attribute?(name)
+      raise ArgumentError, "#{name.inspect} already exists as a instance method" if instance_methods.index(name.to_s)
 
       @@virtuals[self] ||= []
       opts[:description] ||= opts[:desc]
