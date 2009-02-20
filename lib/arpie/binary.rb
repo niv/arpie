@@ -454,6 +454,7 @@ module Arpie
       opts ||= {}
       binary.size >= @binary_size or incomplete!
       value = binary.unpack(@pack_string)[0]
+      value += opts[:mod] if opts[:mod]
       check_limit value, opts[:limit]
 
       [value, @binary_size]
@@ -462,6 +463,7 @@ module Arpie
     def to object, opts
       opts ||= {}
       object.nil? and bogon! nil,"nil object given"
+      object -= opts[:mod] if opts[:mod]
       [object].pack(@pack_string)
     end
 
@@ -517,7 +519,7 @@ module Arpie
       opts = (opts || {}).merge(@force_opts)
       if opts[:sizeof]
         len_handler = Binary.get_field_handler(opts[:sizeof])
-        len, len_size = len_handler.from(binary, {})
+        len, len_size = len_handler.from(binary, opts[:sizeof_opts])
         binary.size >= len_size + len or incomplete!
 
         [binary.unpack("x#{len_size} #{@pack_string}#{len}")[0], len_size + len]
