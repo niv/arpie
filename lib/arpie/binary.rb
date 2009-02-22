@@ -225,6 +225,7 @@ module Arpie
       raise ArgumentError, "#{name.inspect} already exists as a virtual" if virtual?(name)
       raise ArgumentError, "#{name.inspect} already exists as a field" if field?(name)
       raise ArgumentError, "#{name.inspect} already exists as a instance method" if instance_methods.index(name.to_s)
+      raise ArgumentError, "#{name.inspect}: cannot inline classes" if block_given? and type.class === Arpie::Binary
 
       @@fields[self] ||= []
 
