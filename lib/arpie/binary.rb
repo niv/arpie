@@ -40,12 +40,15 @@ module Arpie
   # with names like existing instance methods.
   class Binary
     extend Arpie
+    class Field   < Struct.new(:name, :type, :opts, :inline_handler) ; end
+    class Virtual < Struct.new(:name, :type, :opts, :handler) ; end
 
-    @@fields ||= {}
-    @@attributes ||= {}
-    @@virtuals ||= {}
+
+    @@types       ||= {}
+    @@fields      ||= {}
+    @@virtuals    ||= {}
     @@description ||= {}
-    @@hooks ||= {}
+    @@hooks       ||= {}
 
     #:stopdoc:
     @@anonymous ||= {}
@@ -57,8 +60,8 @@ module Arpie
     end
     #:startdoc:
 
-    def initialize attributes = {}
-      @attributes = attributes
+    def initialize
+      @fields = {}
       if block_given?
         yield self
       end
@@ -71,22 +74,21 @@ module Arpie
         "Anon#{self.class.__anonymous.inspect}" :
         self.class.to_s
 
-      "#<#{klass}#{desc} #{@attributes.inspect}>"
+      "#<#{klass}#{desc} #{@fields.inspect}>"
     end
 
     def method_missing m, *a
       m.to_s =~ /^(.+?)(=?)$/ or super
       at = $1.to_sym
-
-      if self.class.attribute?(at)
+      if self.class.field?(at)
         if $2 == "="
           a.size == 1 or raise ArgumentError
-          if !a[0].is_a?(Class) && inline = self.class.get_attribute(at)[3]
+          if !a[0].is_a?(Class) && inline = self.class.get_field(at)[3]
             a[0], __nil = inline.from(a[0], {})
           end
-          @attributes[at] = a[0]
+          @fields[at] = a[0]
         else
-          @attributes[at]
+          @fields[at]
         end
 
       elsif self.class.virtual?(at)
@@ -102,50 +104,61 @@ module Arpie
     end
 
     def self.call_virtual(on_object, name)
-      @@virtuals[on_object.class].select {|x|
-        x[0] == name
-      }[0][3].call(on_object)
+      @@virtuals[on_object.class].select {|virtual|
+        virtual.name == name
+      }[0].handler.call(on_object)
     end
 
-    # This registers a new field with this binary.
-    def self.register_field handler, *klass_aliases
-      klass_aliases.each do |klass|
-        @@fields[klass] = handler
+    # This registers a new type with this binary.
+    def self.register_type handler, *type_aliases
+      type_aliases.each do |type|
+        @@types[type] = handler
       end
     end
 
-    # Returns true if this Binary has the named +attribute+.
-    def self.attribute? attribute
-      @@attributes[self] or return false
-      @@attributes[self].select {|name,klass,opts|
-        name.to_sym == attribute.to_sym
+    # Returns true if this Binary has the named +field+.
+    def self.field? field
+      @@fields[self] or return false
+      @@fields[self].select {|_field|
+        _field.name == field
       }.size > 0
     end
 
-    def self.get_attribute attribute
-      @@attributes[self] or raise ArgumentError, "No such attribute: #{attribute.inspect}"
-      @@attributes[self].each {|a|
-        a[0].to_sym == attribute.to_sym and return a
+    def self.get_field field
+      @@fields[self] or raise ArgumentError, "No such field: #{field.inspect}"
+      @@fields[self].each {|_field|
+        _field.name == field and return _field
       }
-      raise ArgumentError, "No such attribute: #{attribute.inspect}"
+      raise ArgumentError, "No such field: #{field.inspect}"
     end
 
     # Returns true if this Binary has the named +virtual+.
     def self.virtual? virtual
       @@virtuals[self] or return false
-      @@virtuals[self].select {|name,klass,handler|
-        name.to_sym == virtual.to_sym
+      @@virtuals[self].select {|_virtual|
+        _virtual.name == virtual
       }.size > 0
     end
 
-    # Returns the BinaryType handler class for type +klass+.
-    def self.get_field_handler klass
-      if klass.class === Arpie::Binary
-        klass
+    # Returns the BinaryType handler class for +type+, which can be a
+    # symbol (:uint8), or a Arpie::Binary.
+    def self.get_type_handler type
+      if type.class === Arpie::Binary
+        type
       else
-        @@fields[klass] or raise ArgumentError,
-          "#{self}: No such field type: #{klass.inspect}"
+        @@types[type] or raise ArgumentError,
+          "#{self}: No such field type: #{type.inspect}"
       end
+    end
+
+    def self.describe_all_types
+      ret = []
+      strf = "%-15s %-8s %s"
+      ret << strf % %w{TYPE WIDTH HANDLER}
+      @@types.sort{|a,b| a[0].to_s <=> b[0].to_s}.each {|type, handler|
+        ret << strf % [type.inspect, (handler.binary_size({}) rescue nil), handler.inspect]
+      }
+      ret.join("\n")
     end
 
     # You can use this to provide a short description of this Binary.
@@ -164,67 +177,65 @@ module Arpie
         sprf_of = "%68s %s"
         if @@virtuals[self] && @@virtuals[self].size > 0
           ret << sprf % ["Virtuals:", "NAME", "TYPE", "WIDTH", "", "DESCRIPTION"]
-          @@virtuals[self].each {|v|
-            name, klass, opts, handler = *v
-            width = self.get_field_handler(klass).binary_size({})
+          @@virtuals[self].each {|virtual|
+            width = self.get_type_handler(virtual.type).binary_size(virtual.opts)
             ret << sprf % [ "",
-              name,
-              klass,
+              virtual.name,
+              virtual.type,
               width,
               "",
-              opts[:description]
+              virtual.opts[:description]
             ]
           }
           ret << ""
         end
-        if @@attributes[self] && @@attributes[self].size > 0
+        if @@fields[self] && @@fields[self].size > 0
           ret << sprf % %w{Fields:   NAME TYPE WIDTH OF DESCRIPTION}
-          @@attributes[self].each {|a|
-            name, klass, opts, inline_handler = *a
-            width = self.get_field_handler(klass).binary_size(opts)
+          @@fields[self].each {|field|
+            width = self.get_type_handler(field.type).binary_size(field.opts)
             ret << sprf % [ "",
-              name,
-              klass,
-              (opts[:length] || opts[:sizeof] || width),
-              opts[:of] ? opts[:of].inspect : "",
-              opts[:description]
+              field.name,
+              field.type,
+              (field.opts[:length] || field.opts[:sizeof] || width),
+              field.opts[:of] ? field.opts[:of].inspect : "",
+              field.opts[:description]
             ]
             ret << sprf_of % [ "",
-              opts[:of_opts].inspect
-            ] if opts[:of_opts]
+              field.opts[:of_opts].inspect
+            ] if field.opts[:of_opts]
           }
         end
         ret.join("\n")
       end
     end
 
-    # Specify that this Binary has a field of type +klass+.
+    # Specify that this Binary has a field of type +type+.
     # See the class documentation for usage.
-    def self.field name, klass = nil, opts = {}, &block
+    def self.field name, type = nil, opts = {}, &block
       raise ArgumentError, "#{name.inspect} already exists as a virtual" if virtual?(name)
-      raise ArgumentError, "#{name.inspect} already exists as a field" if attribute?(name)
+      raise ArgumentError, "#{name.inspect} already exists as a field" if field?(name)
       raise ArgumentError, "#{name.inspect} already exists as a instance method" if instance_methods.index(name.to_s)
 
-      @@attributes[self] ||= []
+      @@fields[self] ||= []
 
-      klass.nil? && !block_given? and raise ArgumentError,
+      type.nil? && !block_given? and raise ArgumentError,
         "You need to specify an inline handler if no type is given."
       inline_handler = nil
 
       if block_given?
         inline_handler = Class.new(Arpie::Binary)
-        inline_handler.__anonymous = [name, klass, opts]
+        inline_handler.__anonymous = [name, type, opts]
         inline_handler.instance_eval(&block)
       end
 
-      if klass.nil?
-        klass, inline_handler = inline_handler, nil
+      if type.nil?
+        type, inline_handler = inline_handler, nil
       end
 
-      handler = get_field_handler klass
+      handler = get_type_handler(type)
       if handler.respond_to?(:required_opts)
         missing_required = handler.required_opts.keys - opts.keys
-        raise ArgumentError, "#{self}: #{name.inspect} as type #{klass.inspect} " +
+        raise ArgumentError, "#{self}: #{name.inspect} as type #{type.inspect} " +
           "requires options: #{missing_required.inspect}" if missing_required.size > 0
         handler.required_opts.each {|k,v|
           v.nil? and next
@@ -235,29 +246,28 @@ module Arpie
       opts[:description] ||= opts[:desc] if opts[:desc]
       opts.delete(:desc)
 
-      @@attributes[self] << [name.to_sym, klass, opts, inline_handler]
+      @@fields[self] << Field.new(name.to_sym, type, opts, inline_handler)
     end
 
     # Set up a new virtual field
-    def self.virtual name, klass, opts = {}, &handler
+    def self.virtual name, type, opts = {}, &handler
       raise ArgumentError, "You need to pass a block with virtuals" unless block_given?
       raise ArgumentError, "#{name.inspect} already exists as a virtual" if virtual?(name)
-      raise ArgumentError, "#{name.inspect} already exists as a field" if attribute?(name)
+      raise ArgumentError, "#{name.inspect} already exists as a field" if field?(name)
       raise ArgumentError, "#{name.inspect} already exists as a instance method" if instance_methods.index(name.to_s)
 
       @@virtuals[self] ||= []
       opts[:description] ||= opts[:desc]
       opts.delete(:desc)
-      @@virtuals[self] << [name.to_sym, klass, opts, handler]
+      @@virtuals[self] << Virtual.new(name.to_sym, type, opts, handler)
     end
 
 
     def self.binary_size opts = {}
-      @@attributes[self] ||= []
-      total = @@attributes[self].inject(0) {|sum, attribute|
-        name, klass, kopts, handler = *attribute
-        klass = get_field_handler klass
-        sum += klass.binary_size(kopts)
+      @@fields[self] ||= []
+      total = @@fields[self].inject(0) {|sum, field|
+        klass = get_type_handler(field.type)
+        sum + klass.binary_size(field.opts)
       }
 
       total
@@ -282,32 +292,32 @@ module Arpie
     # Will raise Arpie::EIncomplete when not enough data is available in +binary+ to construct
     # a complete Binary.
     def self.from binary, opts = {}
-      @@attributes[self] ||= []
+      @@fields[self] ||= []
       binary = * self.call_hooks(:pre_from, binary)
 
       consumed_bytes = 0
       obj = new
-      @@attributes[self].each {|name, klass, kopts, inline_handler|
-        kopts[:binary] = binary
-        kopts[:object] = obj
-        handler = get_field_handler klass
+      @@fields[self].each {|field| # name, klass, kopts, inline_handler|
+        field.opts[:binary] = binary
+        field.opts[:object] = obj
+        handler = get_type_handler(field.type)
 
         attrib, consumed = binary, nil
 
         attrib, consumed =
-          handler.from(binary[consumed_bytes .. -1], kopts) rescue case $!
+          handler.from(binary[consumed_bytes .. -1], field.opts) rescue case $!
           when EIncomplete
-            raise $!, "#{$!.to_s}, #{self}#from needs more data for #{name.inspect}. (data: #{binary[consumed_bytes .. -1].inspect})"
+            raise $!, "#{$!.to_s}, #{self}#from needs more data for #{field.name.inspect}. (data: #{binary[consumed_bytes .. -1].inspect})"
           when StreamError
-            bogon! binary[consumed_bytes .. -1], "#{self}#from: #{name.inspect}: #{$!.to_s}"
+            bogon! binary[consumed_bytes .. -1], "#{self}#from: #{field.name.inspect}: #{$!.to_s}"
           else
             raise
         end
         consumed_bytes += consumed
 
-        obj.send((name.to_s + "=").to_sym, attrib)
-        kopts.delete(:binary)
-        kopts.delete(:object)
+        obj.send((field.name.to_s + "=").to_sym, attrib)
+        field.opts.delete(:binary)
+        field.opts.delete(:object)
       }
 
       binary, obj, consumed_bytes = self.call_hooks(:post_from, binary, obj, consumed_bytes)
@@ -316,26 +326,28 @@ module Arpie
 
     # Recursively convert the given Binary object to wire format.
     def self.to object, opts = {}
-      @@attributes[self] ||= []
+      object.nil? and raise ArgumentError, "cannot #to nil"
+      @@fields[self] ||= []
       r = []
       object = * self.call_hooks(:pre_to, object)
 
-      @@attributes[self].each {|name, klass, kopts, inline_handler|
-        kopts[:object] = object
-        handler = get_field_handler klass
-        val = object.send(name)
+      @@fields[self].each {|field| # name, klass, kopts, inline_handler|
+        field.opts[:object] = object
+        handler = get_type_handler(field.type)
+        val = object.send(field.name)
 
-        if inline_handler
+        if field.inline_handler
           val = val.to
         end
 
-        r << handler.to(val, kopts) rescue case $!
+        # r << (val.respond_to?(:to) ? val.to(opts) : handler.to(val, kopts)) rescue case $!
+        r << handler.to(val, field.opts) rescue case $!
           when StreamError
-            raise $!, "#{self}#from: #{name.inspect}: #{$!.to_s}"
+            raise $!, "#{self}#from: #{field.name.inspect}: #{$!.to_s}"
           else
             raise
         end
-        kopts.delete(:object)
+        field.opts.delete(:object)
       }
 
       r = r.join('')
@@ -469,31 +481,31 @@ module Arpie
 
   end
 
-  Binary.register_field(PackBinaryType.new('c'), :uint8)
-  Binary.register_field(PackBinaryType.new("c"), :int8)
-  Binary.register_field(PackBinaryType.new("C"), :uint8)
-  Binary.register_field(PackBinaryType.new("s"), :int16)
-  Binary.register_field(PackBinaryType.new("S"), :uint16)
-  Binary.register_field(PackBinaryType.new("i"), :int32)
-  Binary.register_field(PackBinaryType.new("I"), :uint32)
-  Binary.register_field(PackBinaryType.new("q"), :int64)
-  Binary.register_field(PackBinaryType.new("Q"), :uint64)
+  Binary.register_type(PackBinaryType.new('c'), :uint8)
+  Binary.register_type(PackBinaryType.new("c"), :int8)
+  Binary.register_type(PackBinaryType.new("C"), :uint8)
+  Binary.register_type(PackBinaryType.new("s"), :int16)
+  Binary.register_type(PackBinaryType.new("S"), :uint16)
+  Binary.register_type(PackBinaryType.new("i"), :int32)
+  Binary.register_type(PackBinaryType.new("I"), :uint32)
+  Binary.register_type(PackBinaryType.new("q"), :int64)
+  Binary.register_type(PackBinaryType.new("Q"), :uint64)
 
-  Binary.register_field(PackBinaryType.new("l"), :long64)
-  Binary.register_field(PackBinaryType.new("L"), :ulong64)
+  Binary.register_type(PackBinaryType.new("l"), :long32)
+  Binary.register_type(PackBinaryType.new("L"), :ulong32)
 
-  Binary.register_field(PackBinaryType.new("n"), :nint16)
-  Binary.register_field(PackBinaryType.new("N"), :nint32)
-  Binary.register_field(PackBinaryType.new("v"), :lint16)
-  Binary.register_field(PackBinaryType.new("V"), :lint32)
+  Binary.register_type(PackBinaryType.new("n"), :nint16)
+  Binary.register_type(PackBinaryType.new("N"), :nint32)
+  Binary.register_type(PackBinaryType.new("v"), :lint16)
+  Binary.register_type(PackBinaryType.new("V"), :lint32)
 
-  Binary.register_field(PackBinaryType.new("d"), :double)
-  Binary.register_field(PackBinaryType.new("E"), :ldouble)
-  Binary.register_field(PackBinaryType.new("G"), :ndouble)
+  Binary.register_type(PackBinaryType.new("d"), :double)
+  Binary.register_type(PackBinaryType.new("E"), :ldouble)
+  Binary.register_type(PackBinaryType.new("G"), :ndouble)
 
-  Binary.register_field(PackBinaryType.new("f"), :float)
-  Binary.register_field(PackBinaryType.new("e"), :lfloat)
-  Binary.register_field(PackBinaryType.new("g"), :nfloat)
+  Binary.register_type(PackBinaryType.new("f"), :float)
+  Binary.register_type(PackBinaryType.new("e"), :lfloat)
+  Binary.register_type(PackBinaryType.new("g"), :nfloat)
 
   class BytesBinaryType < BinaryType
     def all_opts; [:sizeof, :length] end
@@ -506,7 +518,7 @@ module Arpie
     def binary_size opts
       opts = @force_opts.merge(opts || {})
       if opts[:sizeof]
-        len_handler = Binary.get_field_handler(opts[:sizeof])
+        len_handler = Binary.get_type_handler(opts[:sizeof])
         len_handler.binary_size(opts[:sizeof_opts])
       elsif opts[:length]
         opts[:length]
@@ -518,7 +530,7 @@ module Arpie
     def from binary, opts
       opts = (opts || {}).merge(@force_opts)
       if opts[:sizeof]
-        len_handler = Binary.get_field_handler(opts[:sizeof])
+        len_handler = Binary.get_type_handler(opts[:sizeof])
         len, len_size = len_handler.from(binary, opts[:sizeof_opts])
         binary.size >= len_size + len or incomplete!
 
@@ -543,7 +555,7 @@ module Arpie
     def to object, opts
       opts = (opts || {}).merge(@force_opts)
       if opts[:sizeof]
-        len_handler = Binary.get_field_handler(opts[:sizeof])
+        len_handler = Binary.get_type_handler(opts[:sizeof])
         len_handler.respond_to?(:pack_string) or raise ArgumentError,
           "#{self.class}#to: needs a PackStringType parameter for length"
 
@@ -567,21 +579,21 @@ module Arpie
     end
   end
 
-  Binary.register_field(BytesBinaryType.new("a", :length => 1), :char)
-  Binary.register_field(BytesBinaryType.new("a"), :bytes)
-  Binary.register_field(BytesBinaryType.new("A"), :string)
-  Binary.register_field(BytesBinaryType.new("Z"), :nstring)
+  Binary.register_type(BytesBinaryType.new("a", :length => 1), :char)
+  Binary.register_type(BytesBinaryType.new("a"), :bytes)
+  Binary.register_type(BytesBinaryType.new("A"), :string)
+  Binary.register_type(BytesBinaryType.new("Z"), :nstring)
 
-  Binary.register_field(BytesBinaryType.new("M"), :quoted_printable)
-  Binary.register_field(BytesBinaryType.new("m"), :base64)
-  Binary.register_field(BytesBinaryType.new("u"), :uuencoded)
+  Binary.register_type(BytesBinaryType.new("M"), :quoted_printable)
+  Binary.register_type(BytesBinaryType.new("m"), :base64)
+  Binary.register_type(BytesBinaryType.new("u"), :uuencoded)
 
 
   class ListBinaryType < BinaryType
 
     def binary_size opts
       if opts[:sizeof]
-        len_handler = Binary.get_field_handler(opts[:sizeof])
+        len_handler = Binary.get_type_handler(opts[:sizeof])
         len_handler.binary_size(opts[:sizeof_opts])
       elsif opts[:length]
         case opts[:length]
@@ -596,7 +608,7 @@ module Arpie
     end
 
     def from binary, opts
-      type_of = Binary.get_field_handler(opts[:of])
+      type_of = Binary.get_type_handler(opts[:of])
       type_of.respond_to?(:binary_size) &&
         type_of_binary_size = type_of.binary_size(opts[:of_opts]) or raise ArgumentError,
         "can only encode known-width fields"
@@ -606,7 +618,7 @@ module Arpie
       length = nil
 
       if opts[:sizeof]
-        len_handler = Binary.get_field_handler(opts[:sizeof])
+        len_handler = Binary.get_type_handler(opts[:sizeof])
         length, ate = len_handler.from(binary, opts[:sizeof_opts])
         consumed += ate
 
@@ -636,10 +648,10 @@ module Arpie
     def to object, opts
       object.is_a?(Array) or bogon! object, "require Array"
 
-      type_of = Binary.get_field_handler(opts[:of])
+      type_of = Binary.get_type_handler(opts[:of])
 
       if opts[:sizeof]
-        len_handler = Binary.get_field_handler(opts[:sizeof])
+        len_handler = Binary.get_type_handler(opts[:sizeof])
         ([len_handler.to(object.size, opts[:sizeof_opts])] + object.map {|o|
           type_of.to(o, opts[:of_opts])
         }).join('')
@@ -666,7 +678,7 @@ module Arpie
 
     end
   end
-  Binary.register_field(ListBinaryType.new, :list)
+  Binary.register_type(ListBinaryType.new, :list)
 
   class FixedBinaryType < BinaryType
     def required_opts ; {:value => proc {|v| v.is_a?(String)}} end
@@ -686,5 +698,5 @@ module Arpie
       opts[:value]
     end
   end
-  Binary.register_field(FixedBinaryType.new, :fixed)
+  Binary.register_type(FixedBinaryType.new, :fixed)
 end
