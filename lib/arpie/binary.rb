@@ -62,6 +62,16 @@ module Arpie
 
     def initialize
       @fields = {}
+
+      # set up our own class handlers, create anon classes, set up default values
+      @@fields[self.class].each {|field|
+        if field.inline_handler
+          @fields[field.name] = field.inline_handler.new
+        end
+        if field.type.is_a?(Class)
+          @fields[field.name] = field.type.new
+        end
+      }
       if block_given?
         yield self
       end
