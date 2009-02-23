@@ -112,6 +112,10 @@ describe "Sized::Marshal::Sized" do subject { [Arpie::SizedProtocol, Arpie::Mars
   it_should_behave_like "ProtocolChain"
 end
 
+describe "Zlib::Marshal::Sized" do subject { [Arpie::ZlibProtocol, Arpie::MarshalProtocol, Arpie::SizedProtocol] }
+  it_should_behave_like "ProtocolChain"
+end
+
 # Shellwords is a bit of a special case, because it only encodes arrays.
 describe "Shellwords::Separator" do subject { [Arpie::ShellwordsProtocol, Arpie::SeparatorProtocol] }
   it_should_behave_like "ProtocolChain"

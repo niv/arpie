@@ -1,5 +1,6 @@
 require 'shellwords'
 require 'yaml'
+require 'zlib'
 
 module Arpie
   MTU = 1024
@@ -347,6 +348,23 @@ module Arpie
       index = binary =~ /^\.\.\.$/x or incomplete!
       yield YAML.load(binary[0, index])
       4 + index
+    end
+  end
+
+  # A transparent zlib stream de/compression protocol.
+  class ZlibProtocol < Protocol
+    def initialize
+      @inflater = Zlib::Inflate.new
+      @deflater = Zlib::Deflate.new
+    end
+
+    def to object
+      yield @deflater.deflate(object) + @deflater.flush
+    end
+
+    def from binary
+      yield @inflater.inflate(binary)
+      binary.size
     end
   end
 end
