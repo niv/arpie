@@ -521,6 +521,27 @@ module Arpie
   Binary.register_type(PackBinaryType.new("e"), :lfloat)
   Binary.register_type(PackBinaryType.new("g"), :nfloat)
 
+  Binary.register_type(PackBinaryType.new("B"), :msb_bitfield)
+  Binary.register_type(PackBinaryType.new("b"), :lsb_bitfield)
+
+  class BitBinaryType < Arpie::BinaryType
+    def from binary, opts
+      len = opts[:length] || 1
+      binary.size >= len or incomplete!
+      b = binary.split("")[0,len].map {|x|
+        x == "1"
+      }
+      b = b[0] if b.size == 1
+      [b, len]
+    end
+
+    def to object, opts
+      object = [object] if object.is_a?(TrueClass) || object.is_a?(FalseClass)
+      object.map {|x| x == true ? "1" : "0" }.join("")
+    end
+  end
+  Arpie::Binary.register_type(BitBinaryType.new, :bit)
+
   class BytesBinaryType < BinaryType
     def all_opts; [:sizeof, :length] end
 
