@@ -1,0 +1,218 @@
+== What is a Binary?
+
+A Binary is a class definition which can be used to pack/unpack part
+of a data stream into/from a logical structure.
+
+What a mouthful.
+
+Let's try with an example:
+
+  class MyBinary < Arpie::Binary
+    field :status, :uint8
+    field :name,   :string,  :sizeof => :uint8
+  end
+
+Looks simple enough, doesn't it?
+
+Use it simply by invoking the .from class method of your newly-defined class:
+
+  irb(main):005:0> a = MyBinary.from("\x01\x05Arpie")
+  => [#<MyBinary {:status=>1, :name=>"Arpie"}>, 7]
+
+.from returns the the unpacked data structure (an instance of MyBinary), and
+the number of bytes the data structure "ate".
+
+This works both ways, of course:
+
+  irb(main):006:0> a[0].to
+  => "\001\005Arpie"
+
+
+== Usage within Arpie::Protocol
+
+You can use Binary within a Arpie::ProtocolChain, but are by no means required to do so.
+
+Binary raises EIncomplete when not enough data is available to construct a
+Binary instance; so you can simply call it within a Protocol to parse a message,
+and it will ask for more data transparently.
+
+  class MyProtocol < Arpie::Protocol
+    def from binary
+      bin, consumed = MyBinary.from(binary)
+      yield bin
+      return consumed
+    end
+  end
+
+
+== Available data types
+
+Now, this is a rather big list and subject to change. Luckily, Arpie includes a little
+helper to show all registered data types. Just run this from a shell:
+
+  ruby -rrubygems -e 'require "arpie"; puts Arpie::Binary.describe_all_types'
+
+and it will print a human-readable list of all data types defined.
+
+See below for a partial list and some generic information on data types.
+
+
+== opts, or parameters to types
+
+Fields can and will have +opts+ - parameters to a field definition, which will define
+how this particular field behaves. These options are mostly specific to a field type, except
+where otherwise noted.
+
+=== :optional => true
+Mark this field as optional. This means that a binary string can be parsed
+even if the given field is absent. If :default is given, that value will be
+inserted instead of nil.
+
+=== :default => value
+Set a default value on +SomeBinary.new+, and if the field was flagged as :optional and
+no data was available to populate it.
+Note that the default value is expected to be in UNPACKED format, not packed.
+
+=== :sizeof and :length
+Most field types take :sizeof OR :length as an argument.
+
+==== :length
+Tell Binary to expect exactly :length items of the given type. Think of it as a fixed-size array.
+
+=== :sizeof
+This includes a prefixed "non-visible" field, which will be used to determine the
+actual expected length of the data. Example:
+
+  field :blurbel, :bytes, :sizeof => :lint16
+
+Will expect a network-order short (16 bits), followed by the amout of bytes the short resolves to.
+
+If the field type given in :sizeof requires additional parameters, you can pass them with
+:sizeof_opts (just like with :list - :of).
+
+== :list
+
+A :list is an array of arbitary, same-type elements. The element type is given in the :list-specific
+:of parameter:
+
+  field :my_list, :list, :of => :lint16
+
+This will complain of not being able to determine the size of the list - pass either a :sizeof,
+or a :length parameter, described as above.
+
+If your :of requires additional argument (a list of lists, for example), you can pass theses with :of_opts:
+
+  field :my_list_2, :list, :sizeof => :uint8, :of => :string,
+    :of_opts => { :sizeof, :nint16 }
+
+== :bitfield
+
+The bitfield type unpacks one or more bytes into their bit values, for individual addressing:
+
+  class TestClass < Arpie::Binary
+    field :flags, :msb_bitfield, :length => 8 do
+      field :bool_1, :bit
+      field :compound, :bit, :length => 7
+      # Take care not to leave any bits unmanaged - weird things happen otherwise.
+    end
+  end
+
+  irb(main):008:0> a, b = TestClass.from("\xff")
+  => [#<TestClass {:flags=>#<Anon[:flags, :msb_bitfield, {:length=>8}] {:bool_1=>true, :compound=>[true, true, true, true, true, true, true]}>}>, 1]
+  irb(main):009:0> a.to
+  => "\377"
+  irb(main):010:0> a.flags.bool_1 = false
+  => false
+  irb(main):011:0> a.to
+  => "\177"
+
+This is pretty much all that you can do with it, for now.
+
+== :fixed
+
+The fixed type allows defining fixed strings that are always the same, both acting as a filler
+and a safeguard (it will complain if it does not match):
+
+  field :blah, :fixed, :value => "FIXED"
+
+== Nested Classes
+
+Instead of pre-registered primitive data fiels you can pass in class names:
+
+  class Outer < Arpie::Binary
+    class Nested < Arpie::Binary
+      field :a, :uint8
+      field :b, :uint8
+    end
+
+    field :hah, :list, :of => Nested, :sizeof => :uint8
+  end
+
+== Inline Anonymous Classes
+
+Also, you can specify anonymous nested classes, which can be used to split data of the same type more fine-grainedly:
+
+  class TestClass < Arpie::Binary
+    field :outer, :bytes, :length => 16 do
+      field :key1, :bytes, :length => 8
+      field :key2, :bytes, :length => 8
+    end
+  end
+
+This will create a anonymous class instance of Binary. :outer will be, just like in the Nested Classes example, passed
+to the inner class for further parsing, and then be accessible in the resulting class instance:
+
+  irb(main):013:0> a, b = TestClass.from("12345678abcdefgh")
+  => [#<TestClass {:outer=>#<Anon[:outer, :bytes, {:length=>16}] {:key2=>"abcdefgh", :key1=>"12345678"}>}>, 16]
+  irb(main):014:0> a.outer.key1
+  => "12345678"
+  irb(main):015:0> a.outer.key2
+  => "abcdefgh"
+
+  irb(main):016:0> a.outer.key2 = "test"
+  => "test"
+  irb(main):017:0> a.to
+  => "12345678test\000\000\000\000"
+
+== virtuals
+
+A virtual is a field definition that is not actually part of the binary data.
+
+As you get to parse complex data structures, you might encounter the following case:
+
+  class TestClass < Arpie::Binary
+    field :len_a, :uint8
+    field :len_b, :uint8
+
+    field :middle, :something
+
+    field :matrix, :list, :of => :uint8, :sizeof => (value of :len_a * :len_b)
+  end
+
+In this case, you will need to use a virtual attribute:
+
+  class TestClass < Arpie::Binary
+    field :len_a, :uint8
+    field :len_b, :uint8
+
+    field :middle, :something
+
+    virtual :v_len do |o| o.len_a * o.len_b end
+    field :hah, :list, :of => Nested, :sizeof => :v_len
+
+    pre_to do |o|
+      o.len_a = 4
+      o.len_b = 2
+      o
+    end
+  end
+
+virtual attributes are one-way - obviously they cannot be used to write out data; there is no "#to".
+
+That is what the pre_to is for - it recalculates len_a and len_b to your specifications.
+
+== hooks
+
+Binary provides several hooks that can be used to mangle data in the transformation process.
+
+See Arpie::Binary, and look for pre_to, post_to, pre_from and post_from. An usage example is given above.
