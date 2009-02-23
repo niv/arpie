@@ -225,12 +225,19 @@ module Arpie
     # Specify that this Binary has a field of type +type+.
     # See the class documentation for usage.
     def self.field name, type = nil, opts = {}, &block
+      @@fields[self] ||= []
+      handler = get_type_handler(type)
+
       raise ArgumentError, "#{name.inspect} already exists as a virtual" if virtual?(name)
       raise ArgumentError, "#{name.inspect} already exists as a field" if field?(name)
       raise ArgumentError, "#{name.inspect} already exists as a instance method" if instance_methods.index(name.to_s)
       raise ArgumentError, "#{name.inspect}: cannot inline classes" if block_given? and type.class === Arpie::Binary
 
-      @@fields[self] ||= []
+      @@fields[self].each {|field|
+        raise ArgumentError, "#{name.inspect}: :optional fields cannot be followed by required fields" if
+          field[:opts].include?(:optional)
+      } unless opts[:optional]
+
 
       type.nil? && !block_given? and raise ArgumentError,
         "You need to specify an inline handler if no type is given."
@@ -246,7 +253,6 @@ module Arpie
         type, inline_handler = inline_handler, nil
       end
 
-      handler = get_type_handler(type)
       if handler.respond_to?(:required_opts)
         missing_required = handler.required_opts.keys - opts.keys
         raise ArgumentError, "#{self}: #{name.inspect} as type #{type.inspect} " +
@@ -321,7 +327,13 @@ module Arpie
         attrib, consumed =
           handler.from(binary[consumed_bytes .. -1], field.opts) rescue case $!
           when EIncomplete
-            raise $!, "#{$!.to_s}, #{self}#from needs more data for #{field.name.inspect}. (data: #{binary[consumed_bytes .. -1].inspect})"
+            if field.opts[:optional]
+              attrib, consumed = field.opts[:default], handler.binary_size(field.opts)
+            else
+              raise $!,
+                "#{$!.to_s}, #{self}#from needs more data for " +
+                "#{field.name.inspect}. (data: #{binary[consumed_bytes .. -1].inspect})"
+            end
           when StreamError
             bogon! binary[consumed_bytes .. -1], "#{self}#from: #{field.name.inspect}: #{$!.to_s}"
           else
@@ -477,7 +489,7 @@ module Arpie
 
     def from binary, opts
       opts ||= {}
-      binary.size >= binary_size(opts) or incomplete!
+      binary && binary.size >= binary_size(opts) or incomplete!
       len = opts[:length] || 1
       pack_string = @pack_string + len.to_s
       value = binary.unpack(pack_string)[0]
