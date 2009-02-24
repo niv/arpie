@@ -710,6 +710,8 @@ module Arpie
 
       elsif opts[:length]
         length = case opts[:length]
+          when :all
+            object.size
           when Symbol
             opts[:object].send(opts[:length])
           else
