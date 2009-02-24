@@ -457,6 +457,7 @@ module Arpie
     attr_reader :pack_string
 
     def binary_size opts
+      opts = @force_opts.merge(opts || {})
       PackBinaryType.length_of(@pack_string + (opts[:length] || 1).to_s)
     end
 
@@ -483,12 +484,13 @@ module Arpie
       length
     end
 
-    def initialize pack_string
+    def initialize pack_string, force_opts = {}
       @pack_string = pack_string
+      @force_opts = force_opts
     end
 
     def from binary, opts
-      opts ||= {}
+      opts = @force_opts.merge(opts || {})
       binary && binary.size >= binary_size(opts) or incomplete!
       len = opts[:length] || 1
       pack_string = @pack_string + len.to_s
@@ -500,7 +502,7 @@ module Arpie
     end
 
     def to object, opts
-      opts ||= {}
+      opts = @force_opts.merge(opts || {})
       object.nil? and bogon! nil,"nil object given"
       object -= opts[:mod] if opts[:mod]
       len = opts[:length] || 1
