@@ -87,7 +87,13 @@ module Arpie
         "Anon#{self.class.__anonymous.inspect}" :
         self.class.to_s
 
-      "#<#{klass}#{desc} #{@fields.inspect}>"
+      fields = []
+      @@fields[self.class].each {|field|
+        fields << "%s=>%s" % [field.name.inspect, @fields[field.name].inspect]
+      }
+      fields = '{' + fields.join(", ") + '}'
+
+      "#<#{klass}#{desc} #{fields}>"
     end
 
     def method_missing m, *a
