@@ -62,6 +62,7 @@ module Arpie
 
     def initialize
       @fields = {}
+      @@fields[self.class] ||= []
 
       # set up our own class handlers, create anon classes, set up default values
       @@fields[self.class].each {|field|
