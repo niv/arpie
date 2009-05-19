@@ -46,7 +46,7 @@ Benchmark.bm {|b|
 
   puts ""
   puts "Arpie: proxied MarshalProtocol without replay protection"
-  $proxy.uuid_generator
+  $proxy.replay_protection = false
   b.report("   1") {    1.times { $proxy.reverse "benchmark" } }
   b.report("1000") { 1000.times { $proxy.reverse "benchmark" } }
 }

@@ -94,7 +94,7 @@ describe "ProxyServer" do
   it "should not re-evaluate for already-seen uuids" do
     @client.evaluate_calls
     @client.evaluate_calls
-    @client.uuid_generator do 100 end
+    @client.serial -= 1
     @client.evaluate_calls
     @client.evaluate_calls
     $evaluate_calls.should == 3

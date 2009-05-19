@@ -51,8 +51,16 @@ module Arpie
 
       begin
         # Prune old serials. This can probably be optimized, but works well enough for now.
-        if @uuid_tracking && message.uuid && message.uuid.is_a?(Numeric)
-          message.uuid &= 0xffffffffffffffff
+        if @uuid_tracking && message.uuid
+          uuid, serial = * message.uuid
+
+          raise ArgumentError,
+            "Invalid UUID given, expect [uuid/64bit, serial/numeric]." unless
+              uuid.is_a?(Integer) && serial.is_a?(Integer)
+
+          # Limit to sane values.
+          uuid   &= 0xffffffffffffffff
+          serial &= 0xffffffffffffffff
 
           timestamps = @uuids.values.map {|v| v[0] }.sort
           latest_timestamp = timestamps[-@max_uuids]
@@ -82,31 +90,47 @@ module Arpie
   class ProxyClient < RPCClient
     attr_accessor :namespace
 
+    # Set to false to disable replay protection.
+    # Default is true.
+    attr_accessor :replay_protection
+
+    # The current serial for this transport.
+    attr_accessor :serial
+
+    # The generated uuid for this Client.
+    # nil if no call has been made yet.
+    attr_accessor :uuid
+
     def initialize *protocols
       super
       @protocol, @namespace = protocol, ""
+      @serial = 0
       @uuid_generator = lambda {|client, method, argv|
-        UUID.random_create.to_i
+        UUIDTools::UUID.random_create.to_i
       }
+      @replay_protection = true
     end
 
     # Set up a new UUID generator for this proxy client.
     # Make sure that this yields really random numbers.
     # The default uses the uuidtools gem and is usually okay.
-    # You can simply set this to nil (by calling it without
-    # a block).
     #
-    # Note that disabling this disables replay protection.
+    # This gets called exactly once for each created ProxyClient.
     def uuid_generator &handler #:yields: client, method, argv
       @uuid_generator = handler
       self
     end
 
     def method_missing meth, *argv # :nodoc:
-      uuid = @uuid_generator ?
-        @uuid_generator.call(self, meth, argv) : nil
+      serial = nil
+      if @replay_protection
+        serial = [
+          @uuid ||= @uuid_generator.call(self, meth, argv),
+          @serial += 1
+        ]
+      end
 
-      call = Arpie::RPCall.new(@namespace, meth, argv, uuid)
+      call = Arpie::RPCall.new(@namespace, meth, argv, serial)
       ret = self.request(call)
       case ret
         when Exception
