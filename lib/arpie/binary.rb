@@ -551,6 +551,7 @@ module Arpie
   class BitBinaryType < Arpie::BinaryType
     def from binary, opts
       len = opts[:length] || 1
+      len = binary.size if len == :all
       binary.size >= len or incomplete!
       b = binary.split("")[0,len].map {|x|
         x == "1"
