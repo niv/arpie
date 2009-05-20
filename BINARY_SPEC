@@ -79,7 +79,29 @@ Most field types take :sizeof OR :length as an argument.
 ==== :length
 Tell Binary to expect exactly :length items of the given type. Think of it as a fixed-size array.
 
-=== :sizeof
+You can actually specify a field or virtual that was defined before the currently-defining field.
+Example:
+
+  class Inner < Arpie::Binary
+    field :sz, :uint8
+    field :ls, :list, :of => :uint8, :length => :sz
+  end
+
+  class Outer < Arpie::Binary
+    field :totalsz, :uint8
+
+    field :bytes, :bytes, :length => :totalsz do
+      field :content, :list, :of => Inner,
+        :length => :all
+    end
+
+    field :end, :uint8
+  end
+
+Note that fields defined this way will NOT update their "length referral" - you will have to
+do that manually.
+
+==== :sizeof
 This includes a prefixed "non-visible" field, which will be used to determine the
 actual expected length of the data. Example:
 
@@ -186,7 +208,7 @@ As you get to parse complex data structures, you might encounter the following c
 
     field :middle, :something
 
-    field :matrix, :list, :of => :uint8, :sizeof => (value of :len_a * :len_b)
+    field :matrix, :list, :of => :uint8, :length => (value of :len_a * :len_b)
   end
 
 In this case, you will need to use a virtual attribute:
@@ -198,7 +220,7 @@ In this case, you will need to use a virtual attribute:
     field :middle, :something
 
     virtual :v_len do |o| o.len_a * o.len_b end
-    field :hah, :list, :of => Nested, :sizeof => :v_len
+    field :hah, :list, :of => Nested, :length => :v_len
 
     pre_to do |o|
       o.len_a = 4

@@ -673,9 +673,10 @@ module Arpie
 
     def from binary, opts
       type_of = Binary.get_type_handler(opts[:of])
-      type_of.respond_to?(:binary_size) &&
-        type_of_binary_size = type_of.binary_size(opts[:of_opts]) or raise ArgumentError,
-        "can only encode known-width fields"
+      type_of_binary_size = nil
+      if type_of.respond_to?(:binary_size)
+        type_of_binary_size = type_of.binary_size(opts[:of_opts]) rescue nil
+      end
 
       list = []
       consumed = 0
@@ -689,21 +690,42 @@ module Arpie
       elsif opts[:length]
         length = case opts[:length]
           when :all
-            binary.size / type_of_binary_size
+            if type_of_binary_size
+              binary.size / type_of_binary_size
+            else
+              nil
+            end
+
           when Symbol
             opts[:object].send(opts[:length])
+
           else
             opts[:length]
+
           end
       else
         raise ArgumentError, "need one of [:sizeof, :length]"
       end
 
       cc, ate = nil, nil
-      for i in 0...length do
-        cc, ate = type_of.from(binary[consumed .. -1], opts[:of_opts])
-        list << cc
-        consumed += ate
+
+
+
+      if length.nil?
+        loop do
+          nextdata = binary[consumed .. -1]
+          break if !nextdata || nextdata == ""
+          cc, ate = type_of.from(binary[consumed .. -1], opts[:of_opts])
+          list << cc
+          consumed += ate
+        end
+
+      else
+        for i in 0...length do
+          cc, ate = type_of.from(binary[consumed .. -1], opts[:of_opts])
+          list << cc
+          consumed += ate
+        end
       end
 
       [list, consumed]
