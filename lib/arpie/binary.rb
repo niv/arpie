@@ -276,6 +276,11 @@ module Arpie
       @@fields[self] << Field.new(name.to_sym, type, opts, inline_handler)
     end
 
+    # Alias for +field+.
+    def self.f *va, &b
+      field *va, &b
+    end
+
     # Set up a new virtual field
     def self.virtual name, type, opts = {}, &handler
       raise ArgumentError, "You need to pass a block with virtuals" unless block_given?
@@ -289,6 +294,10 @@ module Arpie
       @@virtuals[self] << Virtual.new(name.to_sym, type, opts, handler)
     end
 
+    # Alias for +virtual+.
+    def self.v *va, &b
+      virtual *va, &b
+    end
 
     def self.binary_size opts = {}
       @@fields[self] ||= []
