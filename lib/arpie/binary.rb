@@ -34,7 +34,7 @@ module Arpie
   # Do not use +Kernel+ methods as field names. It'll confuse method_missing.
   # Example:
   #  field :test, :uint8
-  # => in `test': wrong number of arguments (ArgumentError)
+  #  => in `test': wrong number of arguments (ArgumentError)
   #
   # In fact, this is the reason while Binary will not let you define fields with
   # with names like existing instance methods.

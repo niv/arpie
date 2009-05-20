@@ -112,7 +112,7 @@ Will expect a network-order short (16 bits), followed by the amout of bytes the 
 If the field type given in :sizeof requires additional parameters, you can pass them with
 :sizeof_opts (just like with :list - :of).
 
-== :list
+=== :list
 
 A :list is an array of arbitary, same-type elements. The element type is given in the :list-specific
 :of parameter:
@@ -127,7 +127,7 @@ If your :of requires additional argument (a list of lists, for example), you can
   field :my_list_2, :list, :sizeof => :uint8, :of => :string,
     :of_opts => { :sizeof, :nint16 }
 
-== :bitfield
+=== :bitfield
 
 The bitfield type unpacks one or more bytes into their bit values, for individual addressing:
 
@@ -150,12 +150,14 @@ The bitfield type unpacks one or more bytes into their bit values, for individua
 
 This is pretty much all that you can do with it, for now.
 
-== :fixed
+== static values / :fixed
 
 The fixed type allows defining fixed strings that are always the same, both acting as a filler
 and a safeguard (it will complain if it does not match):
 
   field :blah, :fixed, :value => "FIXED"
+
+The alias Binary.static does this for you.
 
 == Nested Classes
 
@@ -219,7 +221,7 @@ In this case, you will need to use a virtual attribute:
 
     field :middle, :something
 
-    virtual :v_len do |o| o.len_a * o.len_b end
+    virtual :v_len, :uint16 do |o| o.len_a * o.len_b end
     field :hah, :list, :of => Nested, :length => :v_len
 
     pre_to do |o|
