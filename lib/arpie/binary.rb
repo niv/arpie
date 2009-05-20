@@ -570,8 +570,6 @@ module Arpie
   Arpie::Binary.register_type(BitBinaryType.new, :bit)
 
   class BytesBinaryType < BinaryType
-    def all_opts; [:sizeof, :length] end
-
     def initialize pack_string, force_opts = {}
       @pack_string = pack_string
       @force_opts = force_opts
