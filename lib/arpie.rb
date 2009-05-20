@@ -1,6 +1,7 @@
 require 'arpie/error'
 require 'arpie/protocol'
 require 'arpie/binary'
+require 'arpie/binary_types'
 require 'arpie/xmlrpc'
 require 'arpie/server'
 require 'arpie/client'
