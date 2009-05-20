@@ -294,7 +294,9 @@ module Arpie
       @@fields[self] ||= []
       total = @@fields[self].inject(0) {|sum, field|
         klass = get_type_handler(field.type)
-        sum + klass.binary_size(field.opts)
+        sz = klass.binary_size(field.opts)
+        sz or raise "cannot binary_size dynamic Binary definitions"
+        sum + sz
       }
 
       total
