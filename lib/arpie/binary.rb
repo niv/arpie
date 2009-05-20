@@ -599,6 +599,8 @@ module Arpie
         len = case opts[:length]
           when :all
             binary.size
+          when Symbol
+            opts[:object].send(opts[:length])
           else
             opts[:length]
           end
@@ -625,7 +627,7 @@ module Arpie
           when :all
             "*"
           when Symbol
-            opts[:object].send(opts[:length])
+            "*"
           else
             opts[:length]
         end
@@ -720,7 +722,7 @@ module Arpie
           when :all
             object.size
           when Symbol
-            opts[:object].send(opts[:length])
+            object.size
           else
             opts[:length]
         end
