@@ -769,12 +769,12 @@ module Arpie
   Binary.register_type(ListBinaryType.new, :list)
 
   class FixedBinaryType < BinaryType
-    def required_opts ; {:value => proc {|v| v.is_a?(String)}} end
     def binary_size opts
       opts[:value].size
     end
 
     def from binary, opts
+      opts[:value] or raise ArgumentError, "Requires option :value"
       sz = opts[:value].size
       existing = binary.unpack("a#{sz}")[0]
       existing == opts[:value] or bogon! nil, ":fixed did not match data in packet"
@@ -783,6 +783,8 @@ module Arpie
     end
 
     def to object, opts
+      opts[:value] or raise ArgumentError, "Requires option :value"
+      object == opts[:value] or bogon! nil, ":fixed did not match data in structure"
       opts[:value]
     end
   end
