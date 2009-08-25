@@ -13,7 +13,7 @@ include FileUtils
 # Configuration
 ##############################################################################
 NAME = "arpie"
-VERS = "0.0.5"
+VERS = "0.0.6"
 CLEAN.include ["**/.*.sw?", "pkg", ".config", "rdoc", "coverage"]
 RDOC_OPTS = ["--quiet", "--line-numbers", "--inline-source", '--title', \
   "#{NAME}: A high-performing layered networking protocol framework. Simple to use, simple to extend.", \
