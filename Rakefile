@@ -1,11 +1,8 @@
 require "rake"
 require "rake/clean"
-require "rake/gempackagetask"
-begin
-  require "hanna/rdoctask"
-rescue LoadError
-  require "rake/rdoctask"
-end
+require "rubygems/package_task"
+require "rdoc/task"
+require "rspec/core/rake_task"
 require "fileutils"
 include FileUtils
 
@@ -13,7 +10,7 @@ include FileUtils
 # Configuration
 ##############################################################################
 NAME = "arpie"
-VERS = "0.0.6"
+VERS = "0.0.5"
 CLEAN.include ["**/.*.sw?", "pkg", ".config", "rdoc", "coverage"]
 RDOC_OPTS = ["--quiet", "--line-numbers", "--inline-source", '--title', \
   "#{NAME}: A high-performing layered networking protocol framework. Simple to use, simple to extend.", \
@@ -35,7 +32,6 @@ spec = Gem::Specification.new do |s|
   s.rubyforge_project = "#{NAME}"
   s.version = VERS
   s.platform = Gem::Platform::RUBY
-  s.has_rdoc = true
   s.extra_rdoc_files = DOCS + Dir["doc/*.rdoc"]
   s.rdoc_options += RDOC_OPTS + ["--exclude", "^(examples|extras)\/"]
   s.summary = "A high-performing layered networking protocol framework. Simple to use, simple to extend."
@@ -45,68 +41,37 @@ spec = Gem::Specification.new do |s|
   s.homepage = "http://#{NAME}.elv.es"
   s.executables = []
   s.required_ruby_version = ">= 1.8.4"
-  s.files = %w(COPYING README Rakefile) + Dir.glob("{bin,doc,spec,lib,tools,scripts,data}/**/*")
+  s.files = Dir.glob("{bin,doc,spec,lib,tools,scripts,data}/**/*")
   s.require_path = "lib"
   s.bindir = "bin"
-  s.add_dependency('uuidtools', '>= 2.0.0')
+  s.add_dependency('uuidtools', '>= 1.0.7')
 end
 
-Rake::GemPackageTask.new(spec) do |p|
+Gem::PackageTask.new(spec) do |p|
   p.need_tar = true
   p.gem_spec = spec
 end
 
-desc "Install #{NAME} gem"
-task :install do
-  sh %{rake package}
-  sh %{sudo gem1.8 install pkg/#{NAME}-#{VERS}}
-end
-
-desc "Regenerate proto classes"
-task :protoc do
-  sh %{rprotoc --out=lib/arpie arpie.proto}
-end
-
-desc "Install #{NAME} gem without docs"
-task :install_no_docs do
-  sh %{rake package}
-  sh %{sudo gem1.8 install pkg/#{NAME}-#{VERS} --no-rdoc --no-ri}
-end
-
-desc "Uninstall #{NAME} gem"
-task :uninstall => [:clean] do
-  sh %{sudo gem1.8 uninstall #{NAME}}
-end
-
-desc "Upload #{NAME} gem to rubyforge"
-task :release => [:package] do
-  sh %{rubyforge login}
-  sh %{rubyforge add_release #{NAME} #{NAME} #{VERS} pkg/#{NAME}-#{VERS}.tgz}
-  sh %{rubyforge add_file #{NAME} #{NAME} #{VERS} pkg/#{NAME}-#{VERS}.gem}
-end
-
-require "spec/rake/spectask"
-
 desc "Run specs with coverage"
-Spec::Rake::SpecTask.new("spec") do |t|
-  t.spec_files = FileList["spec/*_spec.rb"]
-  t.spec_opts  = File.read("spec/spec.opts").split("\n")
+RSpec::Core::RakeTask.new("spec") do |t|
+  t.pattern = "spec/*_spec.rb"
+  t.rspec_opts  = File.read("spec/spec.opts").split("\n")
   t.rcov_opts  = File.read("spec/rcov.opts").split("\n")
   t.rcov = true
 end
 
 desc "Run specs without coverage"
 task :default => [:spec_no_cov]
-Spec::Rake::SpecTask.new("spec_no_cov") do |t|
-  t.spec_files = FileList["spec/*_spec.rb"]
-  t.spec_opts  = File.read("spec/spec.opts").split("\n")
+RSpec::Core::RakeTask.new("spec_no_cov") do |t|
+  t.pattern = "spec/*_spec.rb"
+  t.rspec_opts  = File.read("spec/spec.opts").split("\n")
 end
 
 desc "Run rcov only"
-Spec::Rake::SpecTask.new("rcov") do |t|
+RSpec::Core::RakeTask.new("rcov") do |t|
+  t.pattern = "spec/*_spec.rb"
   t.rcov_opts  = File.read("spec/rcov.opts").split("\n")
-  t.spec_opts  = File.read("spec/spec.opts").split("\n")
-  t.spec_files = FileList["spec/*_spec.rb"]
+  t.rspec_opts  = File.read("spec/spec.opts").split("\n")
   t.rcov = true
 end
 
