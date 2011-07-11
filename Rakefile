@@ -14,9 +14,9 @@ VERS = "0.0.6"
 CLEAN.include ["**/.*.sw?", "pkg", ".config", "rdoc", "coverage"]
 RDOC_OPTS = ["--quiet", "--line-numbers", "--inline-source", '--title', \
   "#{NAME}: A high-performing layered networking protocol framework. Simple to use, simple to extend.", \
-  '--main', 'README']
+  '--main', 'README.rdoc']
 
-DOCS = ["README", "COPYING", "BINARY_SPEC"]
+DOCS = ["README.rdoc", "COPYING", "BINARY_SPEC"]
 
 Rake::RDocTask.new do |rdoc|
   rdoc.rdoc_dir = "rdoc"

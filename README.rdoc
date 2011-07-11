@@ -14,7 +14,7 @@ calling thread; though an example implementation for evented callbacks is provid
 
 == Source Code
 
-Source code is in git[http://git.swordcoast.net/?p=lib/ruby/arpie.git;a=summary].
+Source code is in git[https://github.com/elven/arpie].
 
 You can contact me via email at elven@swordcoast.net.
 
