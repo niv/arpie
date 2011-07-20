@@ -1,7 +1,7 @@
 require File.join(File.dirname(__FILE__), 'spec_helper')
 
-describe "ProtocolChain", :shared => true do
-  it_should_behave_like "ProtocolChainSetup"
+shared_examples "ProtocolChain" do
+  include_examples "ProtocolChainSetup"
 
   it "should convert without io correctly" do
     v = @chain.to @testdata_a
@@ -54,8 +54,8 @@ describe "ProtocolChain", :shared => true do
   end
 end
 
-describe "ObjectProtocolChain", :shared => true do
-  it_should_behave_like "ProtocolChain"
+shared_examples "ObjectProtocolChain" do
+  include_examples "ProtocolChain"
   # Now, lets try some variations.
 
   it "should read written objects correctly" do
@@ -69,8 +69,8 @@ describe "ObjectProtocolChain", :shared => true do
   end
 end
 
-describe "RPCProtocolChain", :shared => true do
-  it_should_behave_like "RPCProtocolChainSetup"
+shared_examples "RPCProtocolChain" do
+  include_examples "RPCProtocolChainSetup"
 
   it "should send namespace-less RPC calls correctly encoded" do
     call = Arpie::RPCall.new(nil, 'meth', [1, 2, 3])
@@ -101,39 +101,39 @@ end
 # Now, lets try some variations.
 
 describe "Sized" do subject { [Arpie::SizedProtocol] }
-  it_should_behave_like "ProtocolChain"
+  include_examples "ProtocolChain"
 end
 
 describe "Sized::Sized" do subject { [Arpie::SizedProtocol, Arpie::SizedProtocol] }
-  it_should_behave_like "ProtocolChain"
+  include_examples "ProtocolChain"
 end
 
 describe "Sized::Marshal::Sized" do subject { [Arpie::SizedProtocol, Arpie::MarshalProtocol, Arpie::SizedProtocol] }
-  it_should_behave_like "ProtocolChain"
+  include_examples "ProtocolChain"
 end
 
 describe "Zlib::Marshal::Sized" do subject { [Arpie::ZlibProtocol, Arpie::MarshalProtocol, Arpie::SizedProtocol] }
-  it_should_behave_like "ProtocolChain"
+  include_examples "ProtocolChain"
 end
 
 # Shellwords is a bit of a special case, because it only encodes arrays.
 describe "Shellwords::Separator" do subject { [Arpie::ShellwordsProtocol, Arpie::SeparatorProtocol] }
-  it_should_behave_like "ProtocolChain"
+  include_examples "ProtocolChain"
   before do
     @testdata_a, @testdata_b = ['I am test', '1'], ['I am test', '2']
   end
 end
 
 describe "HTTPTest" do subject { [Arpie::HTTPClientTestProtocol] }
-  it_should_behave_like "ProtocolChain"
+  include_examples "ProtocolChain"
 end
 
 describe "HTTPTest" do subject { [Arpie::HTTPServerTestProtocol] }
-  it_should_behave_like "ProtocolChain"
+  include_examples "ProtocolChain"
 end
 
 describe "YAML" do subject { [Arpie::YAMLProtocol] }
-  it_should_behave_like "ObjectProtocolChain"
+  include_examples "ObjectProtocolChain"
 end
 
 describe "XMLRPC::Sized" do subject {
@@ -142,7 +142,7 @@ describe "XMLRPC::Sized" do subject {
       [Arpie::XMLRPCServerProtocol, Arpie::SizedProtocol]
     ]
   }
-  it_should_behave_like "RPCProtocolChain"
+  include_examples "RPCProtocolChain"
 end
 
 describe "XMLRPC::HTTPTest" do subject {
@@ -151,6 +151,6 @@ describe "XMLRPC::HTTPTest" do subject {
       [Arpie::XMLRPCServerProtocol, Arpie::HTTPServerTestProtocol]
     ]
   }
-  it_should_behave_like "RPCProtocolChain"
+  include_examples "RPCProtocolChain"
 end
 

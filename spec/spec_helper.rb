@@ -8,7 +8,7 @@ unless Object.const_defined?('Arpie')
 end
 include Arpie
 
-describe "IO Mockup", :shared => true do
+shared_examples "IO Mockup" do
   before do
     @r, @w = IO.pipe
   end
@@ -30,8 +30,8 @@ describe "IO Mockup", :shared => true do
   end
 end
 
-describe "ProtocolChainSetup", :shared => true do
-  it_should_behave_like "IO Mockup"
+shared_examples "ProtocolChainSetup" do
+  include_examples "IO Mockup"
 
   before do
     @chain = Arpie::ProtocolChain.new(* subject.map {|x| x.new })
@@ -46,8 +46,8 @@ describe "ProtocolChainSetup", :shared => true do
   end
 end
 
-describe "RPCProtocolChainSetup", :shared => true do
-  it_should_behave_like "IO Mockup"
+shared_examples "RPCProtocolChainSetup" do
+  include_examples "IO Mockup"
 
   before do
     @client = Arpie::ProtocolChain.new(* subject[0].map {|x| x.new })
@@ -59,15 +59,16 @@ end
 
 
 
-describe "Binary Setup", :shared => true do
+shared_examples "Binary Setup" do
+end
+
+shared_examples "Binary Tests" do
+  include_examples "Binary Setup"
+
   before do
     @c = subject[0]
     @d = subject[1]
   end
-end
-
-describe "Binary Tests", :shared => true do
-  it_should_behave_like "Binary Setup"
 
   it "reads and packs the given example binary" do
     dd, b = @c.from(@d)
@@ -75,8 +76,8 @@ describe "Binary Tests", :shared => true do
   end
 end
 
-describe "Binary Tests with data", :shared => true do
-  it_should_behave_like "Binary Tests"
+shared_examples "Binary Tests with data" do
+  include_examples "Binary Tests"
 
   it "should raise EIncomplete when not enough data is available" do
     proc { @c.from("")}.should raise_error Arpie::EIncomplete

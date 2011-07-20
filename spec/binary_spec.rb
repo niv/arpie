@@ -1,6 +1,6 @@
 require File.join(File.dirname(__FILE__), 'spec_helper')
 
-describe "Binary" do
+describe Arpie::Binary do
 
   describe "empty:" do subject {
     [
@@ -9,7 +9,7 @@ describe "Binary" do
       ""
     ]
   }
-    it_should_behave_like "Binary Tests"
+    include_examples "Binary Tests"
   end
 
   describe "basic sanity:" do subject {
@@ -24,7 +24,7 @@ describe "Binary" do
     ]
   }
 
-    it_should_behave_like "Binary Tests with data"
+    include_examples "Binary Tests with data"
   end
 
   describe ".virtual:" do subject {
@@ -38,12 +38,12 @@ describe "Binary" do
     ]
   }
 
-    it_should_behave_like "Binary Tests with data"
-
     it "evaluates the block given" do
       b, co = @c.from(@d)
       b.c.should == b.a * b.b
     end
+
+    include_examples "Binary Tests with data"
   end
 
   describe ".aliases:" do subject {
@@ -58,7 +58,7 @@ describe "Binary" do
     ]
   }
 
-    it_should_behave_like "Binary Tests with data"
+    include_examples "Binary Tests with data"
   end
 
   describe ":default:" do subject {
@@ -72,8 +72,6 @@ describe "Binary" do
     ]
   }
 
-    it_should_behave_like "Binary Tests with data"
-
     it "does not use the default when a value was read" do
       b, con = @c.from([1, 2].pack("CC"))
       b.a.should == 1
@@ -86,6 +84,7 @@ describe "Binary" do
       b.b.should == 5
     end
 
+    include_examples "Binary Tests with data"
   end
 
 

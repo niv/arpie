@@ -3,7 +3,7 @@ require File.join(File.dirname(__FILE__), 'spec_helper')
 require 'socket'
 require 'timeout'
 
-describe "ClientServer", :shared => true do
+shared_examples "ClientServer" do
   before(:all) do
     @tcp_server = TCPServer.new('127.0.0.1', 56000)
   end
@@ -25,7 +25,7 @@ describe "ClientServer", :shared => true do
   end
 end
 
-describe "ProxyClientServer", :shared => true do
+shared_examples "ProxyClientServer" do
   before(:all) do
     @tcp_server = TCPServer.new('127.0.0.1', 56001)
   end
@@ -53,11 +53,11 @@ describe "ProxyClientServer", :shared => true do
 end
 
 describe Arpie::Client do
-  it_should_behave_like "ClientServer"
+  include_examples "ClientServer"
 end
 
 describe Arpie::EventedClient do
-  it_should_behave_like "ClientServer"
+  include_examples "ClientServer"
 
   before do
     @client = Arpie::EventedClient.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
@@ -81,11 +81,11 @@ describe Arpie::EventedClient do
 end
 
 describe Arpie::Server do
-  it_should_behave_like "ClientServer"
+  include_examples "ClientServer"
 end
 
 describe "ProxyServer" do
-  it_should_behave_like "ProxyClientServer"
+  include_examples "ProxyClientServer"
   it "should raise handler errors to the client" do
     lambda { @client.raise_something }.should(raise_error RuntimeError, "Internal Error")
     @handler_errors.should == 1

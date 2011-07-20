@@ -11,7 +11,7 @@ describe "BytesBinaryType" do
     ]
   }
 
-    it_should_behave_like "Binary Tests with data"
+    include_examples "Binary Tests with data"
   end
 
   describe "virtual length" do subject {
@@ -24,7 +24,7 @@ describe "BytesBinaryType" do
     ]
   }
 
-    it_should_behave_like "Binary Tests with data"
+    include_examples "Binary Tests with data"
   end
 
   describe "length as virtual should not update the virtual" do subject {
@@ -37,7 +37,7 @@ describe "BytesBinaryType" do
     ]
   }
 
-    it_should_behave_like "Binary Tests with data"
+    include_examples "Binary Tests with data"
 
     it "does not change virtuals on data change" do
       dd, b = @c.from(@d + "xxyzz")
