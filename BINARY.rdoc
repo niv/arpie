@@ -250,6 +250,28 @@ virtual attributes are one-way - obviously they cannot be used to write out data
 
 That is what the pre_to is for - it recalculates len_a and len_b to your specifications.
 
+== Self-documenting Arpie::Binary
+
+Every Arpie::Binary is self-documenting, as is this example:
+
+  class Doc < Arpie::Binary
+    describe "a document"
+    string :author, :sizeof => :uint16,
+      :description => "The author"
+    string :text, :sizeof => :uint16,
+      :description => "The document text"
+  end
+
+  puts Doc.describe
+
+Will produce output like this:
+
+  Binary:    a document
+
+  Fields:    NAME                      TYPE            WIDTH           OF              DESCRIPTION
+             author                    string          uint16                          The author
+             text                      string          uint16                          The document text
+
 == hooks
 
 Binary provides several hooks that can be used to mangle data in the transformation process.
