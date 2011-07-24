@@ -212,12 +212,6 @@ module Arpie
       0
     end
 
-    # Call this within Protocol#from to reparse the current
-    # message.
-    def again!
-      raise ETryAgain
-    end
-
     # Stow away a message in this protocols buffer for later reassembly.
     # Optional argument: a token if you are planning to reassemble multiple
     # interleaved/fragmented message streams.

@@ -10,7 +10,6 @@ module Arpie
 
   # :stopdoc:
   # Used internally by arpie.
-  class ETryAgain < RuntimeError ; end
   class YieldResult < RuntimeError
     attr_reader :result
     def initialize result
