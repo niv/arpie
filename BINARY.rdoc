@@ -8,8 +8,8 @@ What a mouthful.
 Let's try with an example:
 
   class MyBinary < Arpie::Binary
-    field :status, :uint8
-    field :name,   :string,  :sizeof => :uint8
+    uint8 :status
+    string :name, :sizeof => :uint8
   end
 
 Looks simple enough, doesn't it?
@@ -27,6 +27,15 @@ This works both ways, of course:
   irb(main):006:0> a[0].to
   => "\001\005Arpie"
 
+== Shorter notation for field definitions
+
+Note that calling
+
+  field :name, :type
+
+is equivalent to
+
+  type :name
 
 == Usage within Arpie::Protocol
 
@@ -83,19 +92,19 @@ You can actually specify a field or virtual that was defined before the currentl
 Example:
 
   class Inner < Arpie::Binary
-    field :sz, :uint8
-    field :ls, :list, :of => :uint8, :length => :sz
+    uint8 :sz
+    list :ls, :of => :uint8, :length => :sz
   end
 
   class Outer < Arpie::Binary
-    field :totalsz, :uint8
+    uint8 :totalsz
 
-    field :bytes, :bytes, :length => :totalsz do
-      field :content, :list, :of => Inner,
+    bytes :bytes, :length => :totalsz do
+      list :content, :of => Inner,
         :length => :all
     end
 
-    field :end, :uint8
+    uint8 :end
   end
 
 Note that fields defined this way will NOT update their "length referral" - you will have to
@@ -105,7 +114,7 @@ do that manually.
 This includes a prefixed "non-visible" field, which will be used to determine the
 actual expected length of the data. Example:
 
-  field :blurbel, :bytes, :sizeof => :lint16
+  bytes :blurbel, :sizeof => :lint16
 
 Will expect a network-order short (16 bits), followed by the amout of bytes the short resolves to.
 
@@ -117,14 +126,14 @@ If the field type given in :sizeof requires additional parameters, you can pass 
 A :list is an array of arbitary, same-type elements. The element type is given in the :list-specific
 :of parameter:
 
-  field :my_list, :list, :of => :lint16
+  list :my_list, :of => :lint16
 
 This will complain of not being able to determine the size of the list - pass either a :sizeof,
 or a :length parameter, described as above.
 
 If your :of requires additional argument (a list of lists, for example), you can pass theses with :of_opts:
 
-  field :my_list_2, :list, :sizeof => :uint8, :of => :string,
+  list :my_list_2, :sizeof => :uint8, :of => :string,
     :of_opts => { :sizeof, :nint16 }
 
 === :bitfield
@@ -132,9 +141,9 @@ If your :of requires additional argument (a list of lists, for example), you can
 The bitfield type unpacks one or more bytes into their bit values, for individual addressing:
 
   class TestClass < Arpie::Binary
-    field :flags, :msb_bitfield, :length => 8 do
-      field :bool_1, :bit
-      field :compound, :bit, :length => 7
+    msg_bitfield :flags, :length => 8 do
+      bit :bool_1
+      bit :compound, :length => 7
       # Take care not to leave any bits unmanaged - weird things happen otherwise.
     end
   end
@@ -155,9 +164,15 @@ This is pretty much all that you can do with it, for now.
 The fixed type allows defining fixed strings that are always the same, both acting as a filler
 and a safeguard (it will complain if it does not match):
 
-  field :blah, :fixed, :value => "FIXED"
+  fixed :blah, :value => "FIXED"
 
-The alias Binary.static does this for you.
+The alias Binary.static does this for you, but works slightly different:
+
+  static "aaa" # autogenerates a name with the assumption you don't want to access it
+  static :asdfg, "asdfg"
+
+Fields declared with the "static" alias have a :default value already set, whereas
+fields of the type :fixed do not.
 
 == Nested Classes
 
@@ -165,11 +180,11 @@ Instead of pre-registered primitive data fiels you can pass in class names:
 
   class Outer < Arpie::Binary
     class Nested < Arpie::Binary
-      field :a, :uint8
-      field :b, :uint8
+      uint8 :a
+      uint8 :b
     end
 
-    field :hah, :list, :of => Nested, :sizeof => :uint8
+    list :hah, :of => Nested, :sizeof => :uint8
   end
 
 == Inline Anonymous Classes
@@ -177,9 +192,9 @@ Instead of pre-registered primitive data fiels you can pass in class names:
 Also, you can specify anonymous nested classes, which can be used to split data of the same type more fine-grainedly:
 
   class TestClass < Arpie::Binary
-    field :outer, :bytes, :length => 16 do
-      field :key1, :bytes, :length => 8
-      field :key2, :bytes, :length => 8
+    bytes :outer, :length => 16 do
+      bytes :key1, :length => 8
+      bytes :key2, :length => 8
     end
   end
 
@@ -205,24 +220,24 @@ A virtual is a field definition that is not actually part of the binary data.
 As you get to parse complex data structures, you might encounter the following case:
 
   class TestClass < Arpie::Binary
-    field :len_a, :uint8
-    field :len_b, :uint8
+    uint8 :len_a
+    uint8 :len_b
 
     field :middle, :something
 
-    field :matrix, :list, :of => :uint8, :length => (value of :len_a * :len_b)
+    list :matrix, :of => :uint8, :length => (value of :len_a * :len_b)
   end
 
 In this case, you will need to use a virtual attribute:
 
   class TestClass < Arpie::Binary
-    field :len_a, :uint8
-    field :len_b, :uint8
+    uint8 :len_a
+    uint8 :len_b
 
     field :middle, :something
 
     virtual :v_len, :uint16 do |o| o.len_a * o.len_b end
-    field :hah, :list, :of => Nested, :length => :v_len
+    list :hah, :of => Nested, :length => :v_len
 
     pre_to do |o|
       o.len_a = 4

@@ -148,4 +148,28 @@ describe Arpie::Binary do
     include_examples "Binary Tests with data"
   end
 
+  describe "short notation" do
+    describe "invalid fields" do
+      specify do
+        proc {
+          Class.new(Binary) do
+            invalid :xy
+          end
+        }.should raise_error ArgumentError
+      end
+    end
+
+    describe "simple types" do
+      subject {
+        [
+          Class.new(Binary) do
+            bytes :a, :length => 5
+          end,
+          ["abc01"].pack("a5")
+        ]
+      }
+
+      include_examples "Binary Tests with data"
+    end
+  end
 end

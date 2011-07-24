@@ -229,6 +229,17 @@ module Arpie
       end
     end
 
+    # You can use the field type as a class method to create new fields,
+    # as if you would call Binary.field with the appropriate parameters.
+    #
+    # Examples:
+    #   uint8 :nameof, :default => 1
+    #   fixed :fixedValue, :value => [1,2,3].pack("CCC")
+    #   list :ls, :of => :uint8, :sizeof => :nameof
+    def self.method_missing meth, *va, &block
+      self.field(va.shift, meth, *va, &block)
+    end
+
     # Specify that this Binary has a field of type +type+.
     # See the class documentation for usage.
     def self.field name, type = nil, opts = {}, &block
