@@ -156,6 +156,20 @@ describe Arpie::Binary do
     include_examples "Binary Tests with data"
   end
 
+  describe "mod:" do
+    specify {
+      klass = Class.new(Binary) do
+        uint8 :int, :mod => 1
+        string :test, :sizeof => :uint8, :sizeof_opts => { :mod => -1 }
+      end
+
+      b, read = klass.from("\x01\x05abcde")
+      b.int.should == 2
+      b.test.should == "abcd"
+      read.should == 6
+    }
+  end
+
   describe "short notation" do
     describe "invalid fields" do
       specify do

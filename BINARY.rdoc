@@ -121,6 +121,14 @@ Will expect a network-order short (16 bits), followed by the amout of bytes the 
 If the field type given in :sizeof requires additional parameters, you can pass them with
 :sizeof_opts (just like with :list - :of).
 
+=== :mod
+Certain packed types (namely, numerics), allow for :mod, which will apply
+a fixed modificator to the read/written value. Example:
+
+  string :test, :sizeof => :uint8, :sizeof_opts => { :mod => -1 }
+
+This will always cut off the last character.
+
 === :list
 
 A :list is an array of arbitary, same-type elements. The element type is given in the :list-specific
