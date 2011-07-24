@@ -32,7 +32,10 @@ describe Arpie::Binary do
       Class.new(Binary) do
         field :a, :uint8
         field :b, :uint8
+
         virtual :c, :uint8 do |o| o.a * o.b end
+
+        v :d, :uint8 do |o| 1 + o.c end
       end,
       [1, 2].pack("CC")
     ]
@@ -41,6 +44,11 @@ describe Arpie::Binary do
     it "evaluates the block given" do
       b, co = @c.from(@d)
       b.c.should == b.a * b.b
+    end
+
+    it "evaluates nested virtuals" do
+      b, co = @c.from(@d)
+      b.d.should == b.c + 1
     end
 
     include_examples "Binary Tests with data"
