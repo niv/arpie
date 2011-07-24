@@ -84,8 +84,68 @@ describe Arpie::Binary do
       b.b.should == 5
     end
 
+    it "uses the default for new binaries" do
+      new = @c.new
+      new.b.should == 5
+    end
+
     include_examples "Binary Tests with data"
   end
 
+  describe ":fixed:" do subject {
+    [
+      Class.new(Binary) do
+        field :a, :fixed, :value => "abc"
+      end,
+      ["abc"].pack("a*")
+    ]
+  }
+
+    it "does not use the default for new binaries when using :fixed" do
+      @c.new.a.should == nil
+    end
+
+    it "fails on parsing invalid values" do
+      proc { @c.from("abd") }.should raise_error Arpie::StreamError
+    end
+
+    it "fails on setting invalid values" do
+      proc {
+        c = @c.new
+        c.a = "abd"
+        c.to
+      }.should raise_error Arpie::StreamError
+    end
+
+    include_examples "Binary Tests with data"
+  end
+
+  describe "static:" do subject {
+    [
+      Class.new(Binary) do
+        static :a, "abc"
+      end,
+      ["abc"].pack("a*")
+    ]
+  }
+
+    it "uses the default for new binaries" do
+      new = @c.new.to.should == "abc"
+    end
+
+    it "fails on parsing invalid values" do
+      proc { @c.from("abd") }.should raise_error Arpie::StreamError
+    end
+
+    it "fails on setting invalid values" do
+      proc {
+        c = @c.new
+        c.a = "abd"
+        c.to
+      }.should raise_error Arpie::StreamError
+    end
+
+    include_examples "Binary Tests with data"
+  end
 
 end
