@@ -6,7 +6,7 @@ module Arpie
   class StreamError < IOError ; end
   # Raised by arpie when a Protocol needs more data to parse a packet.
   # Usually only of relevance to the programmer when using Protocol#from directly.
-  class EIncomplete < RuntimeError ; end
+  class EIncomplete < Errno::EAGAIN ; end
 
   # :stopdoc:
   # Used internally by arpie.
