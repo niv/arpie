@@ -7,6 +7,7 @@ module Arpie
     def from binary, opts
       opts[:value] or raise ArgumentError, "Requires option :value"
       sz = opts[:value].size
+      binary.size >= sz or incomplete!
       existing = binary.unpack("a#{sz}")[0]
       existing == opts[:value] or bogon! nil, ":fixed did not match data in packet"
 
