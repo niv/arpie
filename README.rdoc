@@ -1,167 +1,26 @@
 = What's this?
 
-Arpie is a end-to-end framework for sending protocol-encoded messages over arbitary
-IO channels, including UNIX/TCP Sockets, Pipes, and pidgeon carriers (depending on
-your implementation details).
+Arpie is a toolkit for handling binary data, network protocols, file formats, and
+similar.
 
-Arpie also provides a robust replay-protected RPC framework.
+It provides:
 
-The useful core of arpie is a protocol stack that can be used to read/split/assemble/write
-any data stream, but is tailored for packeted streaming data.
+- a DSL-like syntax for describing file formats (see BINARY.rdoc)
+- stackable protocols that can be used to abstract layers of on-wire data
+- a replay-protected RPC framework
+- some bits and glue to put it all together (for example, with eventmachine)
 
-The Arpie server uses one ruby-thread per client, the client runs entirely in the
-calling thread; though an example implementation for evented callbacks is provided.
+== Getting started
 
-== Source Code
-
-Source code is in git[https://github.com/elven/arpie].
-
+Source code is available on github[https://github.com/elven/arpie].
 You can contact me via email at elven@swordcoast.net.
 
-arpie is available on the rubygems gem server - just do <tt>gem1.8 install arpie</tt>
+arpie is packaged up as a gem - just do <tt>gem1.8 install arpie</tt>
 to get the newest version.
 
+== Further reading & examples
 
-== Simple, contrived example: A string reverse server
-
-  require 'rubygems'
-  require 'arpie'
-  require 'socket'
-
-  server = TCPServer.new(51210)
-
-  e = Arpie::Server.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
-
-  e.handle do |server, ep, msg|
-    ep.write_message msg.reverse
-  end
-
-  e.accept do
-    server.accept
-  end
-
-  c = Arpie::Client.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
-  c.connect do
-    TCPSocket.new("127.0.0.1", 51210)
-  end
-
-  c.write_message "hi"
-  puts c.read_message
-  # => "ih"
-
-== Advanced, but still simple example: Using Proxy to access remote objects
-
-  require 'rubygems'
-  require 'arpie'
-  require 'socket'
-
-  class MyHandler
-    def reverse str
-      str.reverse
-    end
-  end
-
-  server = TCPServer.new(51210)
-
-  e = Arpie::ProxyServer.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
-
-  e.handle MyHandler.new
-
-  e.accept do
-    server.accept
-  end
-
-  p = Arpie::ProxyClient.new(Arpie::MarshalProtocol.new, Arpie::SizedProtocol.new)
-  p.connect do |transport|
-    TCPSocket.new("127.0.0.1", 51210)
-  end
-
-  puts p.reverse "hi"
-  # => "ih"
-
-== Writing custom Protocols
-
-You can use arpies Protocol layer to write your custom protocol parser/emitters.
-Consider the following, again very contrived, example. You have a linebased wire format,
-which sends regular object updates in multiple lines, each holding a property to be updated.
-What objects get updated is not relevant to this example.
-
-For this example, we'll be using the SeparatorProtocol already contained in protocols.rb as
-a base.
-
-  class AssembleExample < Arpie::Protocol
-
-    def from binary
-      # The wire format is simply a collection of lines
-      # where the first one is a number containing the
-      # # of lines to expect.
-      assemble! binary do |binaries, meta|
-        binaries.size >= 1 or incomplete!
-        binaries.size - 1 >= binaries[0].to_i or incomplete!
-
-        # Here, you can wrap all collected updates in
-        # whatever format you want it to be. We're just
-        # "joining" them to be a single array.
-        binaries.shift
-        binaries
-      end
-    end
-
-    def to object
-      yield object.size
-      object.each {|oo|
-        yield oo
-      }
-    end
-  end
-
-  p = Arpie::ProtocolChain.new(
-        AssembleExample.new,
-        Arpie::SeparatorProtocol.new
-      )
-  r, w = IO.pipe
-
-  p.write_message(w, %w{we want to be assembled})
-
-  p p.read_message(r)
-  # => ["we", "want", "to", "be", "assembled"]
-
-== Replay protection
-
-It can happen that a Client loses connection to a Server.
-In that case, the Transport tries transparently reconnecting by simply
-invoking the block again that was given to Client#connect.
-See the Client accessors for modifying this behaviour.
-
-It is assumed that each call, that is being placed, is atomic - eg, no
-connection losses in between message send and receive; lost messages
-will be retransmitted. Some Protocol classes provide support for replay
-protection through in-band UUIDs; though it is not a requirement to implement it.
-If a UUID is provided in the data stream, the Protocol will not call
-the handler again for retransmissions, but instead reply with the old,
-already evaluated value.
-
-Not all protocols support UUIDs; those who do not offer no replay protection,
-and special care has to be taken elsewhere.
-
-All object-encoding protocols support UUIDs, including YAML and Marshal.
-XMLRPC does not.
-
-== Benchmarks
-
-There is a benchmark script included in the git repository (and in the gem
-under tools/). A sample output follows; your milage may vary.
-
-        user     system      total        real
-
-  native DRb
-     1  0.000000   0.000000   0.000000 (  0.000172)
-  1000  0.110000   0.010000   0.120000 (  0.119767)
-
-  Arpie: proxied MarshalProtocol with replay protection through uuidtools
-     1  0.000000   0.000000   0.010000 (  0.075373)
-  1000  0.530000   0.090000   0.600000 (  0.608665)
-
-  Arpie: proxied MarshalProtocol without replay protection
-     1  0.000000   0.000000   0.000000 (  0.000173)
-  1000  0.170000   0.020000   0.190000 (  0.194649)
+- Writing custom protocols: PROTOCOLS.rdoc
+- replay-protected RPC with arpie: RPC.rdoc
+- Various examples: EXAMPLES.rdoc
+- How to use eventmachine with arpie: Arpie::EventMachine::ArpieProtocol

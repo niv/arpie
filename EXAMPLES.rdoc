@@ -1,0 +1,11 @@
+== Simple, contrived example: A string reverse server
+
+  :include:examples/simple.rb
+
+== Advanced, but still simple example: Using Proxy to access remote objects
+
+  :include:examples/proxy.rb
+
+== EventMachine sample
+
+  :include:examples/em.rb
