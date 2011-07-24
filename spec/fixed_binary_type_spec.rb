@@ -15,11 +15,11 @@ describe FixedBinaryType do
   end
 
   it "should raise error on mismatch in #from" do
-    proc { subject.from("aaa", :value => "aaaa") }.should raise_error StreamError
+    proc { subject.from("aaa", :value => "aaaa") }.should raise_error Arpie::EIncomplete
   end
 
   it "raises error on mismatch in #to" do
-    proc { subject.to("aaa", :value => "aaaa") }.should raise_error StreamError
+    proc { subject.to("aaa", :value => "aaaa") }.should raise_error Arpie::StreamError
   end
 
   it "raiseserror on missing option" do
