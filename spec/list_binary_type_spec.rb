@@ -30,5 +30,14 @@ describe "ListBinaryType" do
     it "raises EIncomplete when partial data remains" do
       proc { Outer.from [8, 0, 1, 2, 3, 4, 5, 6, 7,  4, 1, 2 ].pack("C*") }.should raise_error Arpie::EIncomplete
     end
+
+    it "fails on invalid length specification" do
+      klass = Class.new(Arpie::Binary) do
+        list :maxonly, :of => :char,
+          :sizeof => :int8
+      end
+
+      proc { klass.from("\xff") }.should raise_error StreamError
+    end
   end
 end

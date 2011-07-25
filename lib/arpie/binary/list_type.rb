@@ -67,6 +67,8 @@ module Arpie
         end
 
       else
+        raise StreamError, "length < 0" if length < 0
+
         for i in 0...length do
           cc, ate = type_of.from(binary[consumed .. -1], opts[:of_opts])
           list << cc
