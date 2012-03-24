@@ -12,10 +12,7 @@ It provides:
 
 == Getting started
 
-Source code is available on github[https://github.com/elven/arpie].
-You can contact me via email at elven@swordcoast.net.
-
-arpie is packaged up as a gem - just do <tt>gem1.8 install arpie</tt>
+arpie is packaged up as a gem - just do <tt>gem install arpie</tt>
 to get the newest version.
 
 == Further reading & examples
@@ -24,3 +21,9 @@ to get the newest version.
 - replay-protected RPC with arpie: RPC.rdoc
 - Various examples: EXAMPLES.rdoc
 - How to use eventmachine with arpie: Arpie::EventMachine::ArpieProtocol
+
+== Latest code & developer contact
+
+The latest source is available through git[https://github.com/elven/arpie].
+
+All stable releases are tagged properly.

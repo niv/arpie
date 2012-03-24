@@ -16,7 +16,7 @@ RDOC_OPTS = ["--quiet", "--line-numbers", "--inline-source", '--title', \
   "#{NAME}: A high-performing layered networking protocol framework. Simple to use, simple to extend.", \
   '--main', 'README.rdoc']
 
-DOCS = ["README.rdoc", "COPYING", "BINARY.rdoc"]
+DOCS = ["README.rdoc", "LICENCE", "BINARY.rdoc"]
 
 Rake::RDocTask.new do |rdoc|
   rdoc.rdoc_dir = "rdoc"
