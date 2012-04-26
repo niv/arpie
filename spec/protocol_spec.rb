@@ -40,8 +40,11 @@ shared_examples "ProtocolChain" do
   end
 
   it "should read messages greater than MTU correctly" do
-    chain_write(message = (@testdata_a * (Arpie::MTU + 10)))
-    chain_read.should == message
+    unless @testdata_a.is_a?(Array)
+      message = @testdata_a * (Arpie::MTU + 10)
+      chain_write(message)
+      chain_read.should == message
+    end
   end
 
   it "should not fail on interleaved io streams" do
