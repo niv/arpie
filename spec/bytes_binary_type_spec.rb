@@ -46,4 +46,17 @@ describe "BytesBinaryType" do
       dd.to.should == expect
     end
   end
+
+  describe "NULL-terminated strings" do subject {
+    [
+      Class.new(Arpie::Binary) do
+        field :s, :nstring
+        field :d, :uint8
+      end,
+      ["abcd", 4].pack("Z* C")
+    ]
+  }
+
+    include_examples "Binary Tests with data"
+  end
 end

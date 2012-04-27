@@ -29,7 +29,12 @@ module Arpie
       elsif opts[:length]
         len = case opts[:length]
           when :all
-            binary.size
+            if @pack_string == "Z"
+              npos = binary.index("\000") or raise EIncomplete
+              npos + 1
+            else
+              binary.size
+            end
           when Symbol
             opts[:object].send(opts[:length])
           else
@@ -74,7 +79,7 @@ module Arpie
   Binary.register_type(BytesBinaryType.new("a", :length => 1), :char)
   Binary.register_type(BytesBinaryType.new("a"), :bytes)
   Binary.register_type(BytesBinaryType.new("A"), :string)
-  Binary.register_type(BytesBinaryType.new("Z"), :nstring)
+  Binary.register_type(BytesBinaryType.new("Z", :length => :all), :nstring)
 
   Binary.register_type(BytesBinaryType.new("M"), :quoted_printable)
   Binary.register_type(BytesBinaryType.new("m"), :base64)
