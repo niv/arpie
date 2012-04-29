@@ -44,7 +44,9 @@ module Arpie
       # Send a message, encoding it with the given
       # protocols.
       def send message
-        send_data(@chain.to(message))
+        for msg in @chain.to(message)
+          send_data(msg)
+        end
       end
     end
   end # module EventMachine

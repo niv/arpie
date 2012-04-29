@@ -163,7 +163,7 @@ module Arpie
     # Write +message+ to +io+.
     def write_message io, *messages
       binary = messages.map {|m| to(m)}
-      io.write(binary)
+      io.write(binary.flatten.join(""))
     end
 
     def reset
