@@ -1,8 +1,8 @@
 require File.join(File.dirname(__FILE__), 'spec_helper')
 
-require 'arpie/em'
+require 'eventmachine'
 
-describe 'Arpie::EventMachine::ArpieProtocol' do
+describe 'Eventmachine usecase' do
   specify do
     $m = nil
 

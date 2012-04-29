@@ -1,5 +1,3 @@
-require 'eventmachine'
-
 module Arpie
   module EventMachine
     # A EventMachine protocol implementing a simple protocol
@@ -17,9 +15,6 @@ module Arpie
     #
     # To send messages back over the same connection, simply call
     # <tt>send(message)</tt>.
-    #
-    # Note that this module isn't included by requiring just 'arpie'.
-    # You will need to require 'arpie/em'.
     module ArpieProtocol
       attr_reader :chain
 

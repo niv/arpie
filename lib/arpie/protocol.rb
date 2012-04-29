@@ -23,10 +23,6 @@ module Arpie
     # A buffer holding all parsed, but unreturned messages.
     attr_reader :messages
 
-    # The endpoint class of this Protocol.
-    # Defaults to Arpie::Endpoint
-    attr_accessor :endpoint_class
-
     # Create a new Chain. Supply an Array of Protocol
     # instances, where the leftmost is the innermost.
     #
@@ -39,8 +35,6 @@ module Arpie
         raise ArgumentError,
           "The outermost protocol needs to be able to " +
           "separate messages in a stream (#{protocols.inspect} does not)."
-
-      @endpoint_class = Arpie::Endpoint
 
       @chain = protocols
       @buffer = ""

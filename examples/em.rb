@@ -1,6 +1,6 @@
 require 'rubygems'
 require 'arpie'
-require 'arpie/em'
+require 'eventmachine'
 
 EM::run {
   EM::start_server "127.0.0.1", 51210, Arpie::EventMachine::ArpieProtocol,

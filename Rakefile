@@ -44,7 +44,6 @@ spec = Gem::Specification.new do |s|
   s.files = Dir.glob("{bin,doc,spec,lib,tools,scripts,data}/**/*")
   s.require_path = "lib"
   s.bindir = "bin"
-  s.add_dependency('uuidtools', '>= 1.0.7')
 end
 
 Gem::PackageTask.new(spec) do |p|
