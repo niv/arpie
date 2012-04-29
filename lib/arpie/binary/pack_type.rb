@@ -14,16 +14,26 @@ module Arpie
         count = 1 if count == 0
 
         length += case directive
-        when 'A', 'a', 'C', 'c', 'Z', 'x' : count
-        when 'B', 'b' : (count / 8.0).ceil
-        when 'D', 'd', 'E', 'G' : count * 8
-        when 'e', 'F', 'f', 'g' : count * 4
-        when 'H', 'h' : (count / 2.0).ceil
-        when 'I', 'i', 'L', 'l', 'N', 'V' : count * 4
-        when 'n', 'S', 's', 'v' : count * 2
-        when 'Q', 'q' : count * 8
-        when 'X' : count * -1
-        else raise ArgumentError, "#{directive} is not supported"
+        when 'A', 'a', 'C', 'c', 'Z', 'x'
+          count
+        when 'B', 'b'
+          (count / 8.0).ceil
+        when 'D', 'd', 'E', 'G'
+          count * 8
+        when 'e', 'F', 'f', 'g'
+          count * 4
+        when 'H', 'h'
+          (count / 2.0).ceil
+        when 'I', 'i', 'L', 'l', 'N', 'V'
+          count * 4
+        when 'n', 'S', 's', 'v'
+          count * 2
+        when 'Q', 'q'
+          count * 8
+        when 'X'
+          count * -1
+        else
+          raise ArgumentError, "#{directive} is not supported"
         end
       end
 

@@ -5,7 +5,8 @@ shared_examples "ProtocolChain" do
 
   it "should convert without io correctly" do
     v = @chain.to @testdata_a
-    @chain.from(v).should == [@testdata_a]
+    from = @chain.from(v[0])
+    from[0].should == @testdata_a
   end
 
   it "should read written binary data correctly" do

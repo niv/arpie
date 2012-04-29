@@ -342,7 +342,7 @@ module Arpie
     # a complete Binary.
     def self.from binary, opts = {}
       @@fields[self] ||= []
-      binary = * self.call_hooks(:pre_from, binary)
+      binary, * = * self.call_hooks(:pre_from, binary)
 
       consumed_bytes = 0
       obj = new
@@ -384,7 +384,7 @@ module Arpie
       object.nil? and raise ArgumentError, "cannot #to nil"
       @@fields[self] ||= []
       r = []
-      object = * self.call_hooks(:pre_to, object)
+      object, * = * self.call_hooks(:pre_to, object)
 
       @@fields[self].each {|field| # name, klass, kopts, inline_handler|
         field.opts[:object] = object
@@ -445,6 +445,10 @@ module Arpie
     # passed, as they will replace the original values.
     def self.post_from &handler
       self.add_hook(:post_from, handler)
+    end
+
+    private
+    def self.to_ary *a
     end
   end
 end
