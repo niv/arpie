@@ -136,7 +136,7 @@ describe "HTTPTest" do subject { [Arpie::HTTPServerTestProtocol] }
   include_examples "ProtocolChain"
 end
 
-describe "YAML" do subject { [Arpie::YAMLProtocol] }
+describe "YAML::Sized" do subject { [Arpie::YAMLProtocol, Arpie::SizedProtocol] }
   include_examples "ObjectProtocolChain"
 end
 

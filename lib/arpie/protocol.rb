@@ -1,4 +1,5 @@
 require 'shellwords'
+require 'psych' if RUBY_VERSION =~ /^1.9/
 require 'yaml'
 require 'zlib'
 
@@ -332,16 +333,13 @@ module Arpie
   # A protocol which encodes objects into YAML representation.
   # Messages are arbitary yaml-encodable objects.
   class YAMLProtocol < Protocol
-    CAN_SEPARATE_MESSAGES = true
-
     def to object
-      yield YAML.dump(object) + "...\n"
+      yield YAML.dump(object)
     end
 
     def from binary
-      index = binary =~ /^\.\.\.$/x or incomplete!
-      yield YAML.load(binary[0, index])
-      4 + index
+      yield YAML.load(binary)
+      binary.size
     end
   end
 
