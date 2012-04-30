@@ -173,12 +173,12 @@ module Arpie
     # message separation within a stream.
     CAN_SEPARATE_MESSAGES = false
 
-    # :stopdoc:
+    # @private
     # The stowbuffer hash used by assemble! No need to touch this, usually.
     attr_reader :stowbuffer
+    # @private
     # The meta-information hash used by assemble! No need to touch this, usually.
     attr_reader :metabuffer
-    # :startdoc:
 
     # Convert obj to on-the-wire format.
     def to obj

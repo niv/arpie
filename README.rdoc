@@ -5,8 +5,8 @@ similar.
 
 It provides:
 
-- a DSL-like syntax for describing file formats (see BINARY.rdoc)
-- stackable protocols that can be used to abstract layers of on-wire data
+- a DSL-like syntax for describing file formats (see {file:BINARY})
+- stackable protocols that can be used to abstract layers of on-wire data (see {file:PROTOCOLS})
 - some bits and glue to put it all together (for example, with eventmachine)
 
 == Getting started
@@ -14,12 +14,4 @@ It provides:
 arpie is packaged up as a gem - just do <tt>gem install arpie</tt>
 to get the newest version.
 
-== Further reading & examples
-
-- Writing custom protocols: PROTOCOLS.rdoc
-
-== Latest code & developer contact
-
 The latest source is available through git[https://github.com/elven/arpie].
-
-All stable releases are tagged properly.

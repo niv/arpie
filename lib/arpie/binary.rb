@@ -50,7 +50,7 @@ module Arpie
     @@description ||= {}
     @@hooks       ||= {}
 
-    #:stopdoc:
+    # @private
     @@anonymous ||= {}
     def self.__anonymous
       @@anonymous[self]
@@ -58,7 +58,6 @@ module Arpie
     def self.__anonymous= x
       @@anonymous[self] = x
     end
-    #:startdoc:
 
     def initialize
       @fields = {}

@@ -8,7 +8,7 @@ module Arpie
   # Usually only of relevance to the programmer when using Protocol#from directly.
   class EIncomplete < Errno::EAGAIN ; end
 
-  # :stopdoc:
+  # @private
   # Used internally by arpie.
   class YieldResult < RuntimeError
     attr_reader :result
@@ -16,7 +16,6 @@ module Arpie
       @result = result
     end
   end
-  # :startdoc:
 
   # Call this if you think the stream has been corrupted, or
   # non-protocol data arrived.

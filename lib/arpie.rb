@@ -1,3 +1,4 @@
+require 'arpie/version'
 require 'arpie/error'
 require 'arpie/protocol'
 require 'arpie/binary'
