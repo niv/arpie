@@ -14,4 +14,13 @@ Gem::Specification.new do |gem|
   gem.name          = "arpie"
   gem.require_paths = ["lib"]
   gem.version       = Arpie::VERSION
+
+  gem.post_install_message = "
+    You have installed arpie 0.1.0 or greater. This breaks
+    compatibility with previous versions (0.0.x).
+
+    Specifically, it removes all client/server code, and
+    XMLRPC integration, since EventMachine and similar does
+    all that in a much cleaner and more efficient way.
+  "
 end
