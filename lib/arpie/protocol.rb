@@ -5,8 +5,6 @@ require 'zlib'
 
 module Arpie
   MTU = 1024
-  # A RPC call. You need to wrap all calls sent over RPC protocols in this.
-  class RPCall < Struct.new(:ns, :meth, :argv, :uuid); end
 
   # A ProtocolChain wraps one or more Protocols to provide a parser
   # list, into which io data can be fed and parsed packets received; and

@@ -128,33 +128,6 @@ describe "Shellwords::Separator" do subject { [Arpie::ShellwordsProtocol, Arpie:
   end
 end
 
-describe "HTTPTest" do subject { [Arpie::HTTPClientTestProtocol] }
-  include_examples "ProtocolChain"
-end
-
-describe "HTTPTest" do subject { [Arpie::HTTPServerTestProtocol] }
-  include_examples "ProtocolChain"
-end
-
 describe "YAML::Sized" do subject { [Arpie::YAMLProtocol, Arpie::SizedProtocol] }
   include_examples "ObjectProtocolChain"
 end
-
-describe "XMLRPC::Sized" do subject {
-    [
-      [Arpie::XMLRPCClientProtocol, Arpie::SizedProtocol],
-      [Arpie::XMLRPCServerProtocol, Arpie::SizedProtocol]
-    ]
-  }
-  include_examples "RPCProtocolChain"
-end
-
-describe "XMLRPC::HTTPTest" do subject {
-    [
-      [Arpie::XMLRPCClientProtocol, Arpie::HTTPClientTestProtocol],
-      [Arpie::XMLRPCServerProtocol, Arpie::HTTPServerTestProtocol]
-    ]
-  }
-  include_examples "RPCProtocolChain"
-end
-
