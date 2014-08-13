@@ -15,3 +15,7 @@ arpie is packaged up as a gem - just do <tt>gem install arpie</tt>
 to get the newest version.
 
 The latest source is available through git[https://github.com/niv/arpie].
+
+== Code Status
+
+{<img src="https://travis-ci.org/niv/arpie.svg?branch=master" alt="Build Status" />}[https://travis-ci.org/niv/arpie]
