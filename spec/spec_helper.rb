@@ -1,11 +1,15 @@
-require 'rubygems'
+Bundler.setup(:default, :test)
+
+RSpec.configure do |config|
+  config.expect_with :rspec do |c|
+    c.syntax = [:should, :expect]
+  end
+end
 
 Thread.abort_on_exception = true
 
-unless Object.const_defined?('Arpie')
-  $:.unshift(File.join(File.dirname(__FILE__), "../lib/"))
-  require 'arpie'
-end
+$:.unshift(File.join(File.dirname(__FILE__), "../lib/"))
+require 'arpie'
 include Arpie
 
 shared_examples "IO Mockup" do

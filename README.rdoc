@@ -14,4 +14,4 @@ It provides:
 arpie is packaged up as a gem - just do <tt>gem install arpie</tt>
 to get the newest version.
 
-The latest source is available through git[https://github.com/elven/arpie].
+The latest source is available through git[https://github.com/niv/arpie].
